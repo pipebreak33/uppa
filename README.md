@@ -1,4 +1,4 @@
-# uppa
+# Uppa
 
 <p align="center">
   <img src="assets/uppa.svg" alt="Uppa: Hej! Jag är Uppa." width="720">
@@ -20,9 +20,9 @@ irm https://raw.githubusercontent.com/pipebreak33/uppa/main/install.ps1 | iex
 curl -fsSL https://raw.githubusercontent.com/pipebreak33/uppa/main/install.sh | sh
 ```
 
-Öppna en ny terminal och kör `uppa`. Vill du ha allt på en gång: `uppa install bas` (eller `m365` / `azure`). Uppdatera uppa själv med `uppa self-update`. Lås en version med `UPPA_BRANCH=v1.0.0` (PowerShell: `$env:UPPA_BRANCH = 'v1.0.0'`) före installationsraden.
+Öppna en ny terminal och kör `uppa`. Vill du ha allt på en gång: `uppa install bas` (eller `m365` / `azure`). Uppdatera Uppa själv med `uppa self-update`. Lås en version med `UPPA_BRANCH=v1.0.0` (PowerShell: `$env:UPPA_BRANCH = 'v1.0.0'`) före installationsraden.
 
-## Vad uppa sköter
+## Vad Uppa sköter
 
 | Källa | Vad | Hur |
 |---|---|---|
@@ -32,7 +32,7 @@ curl -fsSL https://raw.githubusercontent.com/pipebreak33/uppa/main/install.sh | 
 | az-tillägg | resource-graph (+ Bicep om `az bicep` finns) | `az extension update` |
 | CLI (npm) | @pnp/cli-microsoft365 (+ @azure/*, @microsoft/*) | `npm install -g …@latest` (sudo i egen terminal om npm-mappen ägs av root) |
 | Puppa | kusinen för PowerShell-uppgifter med några knapptryck | `uppa install puppa` kör Puppas egen installationsrad; därefter finns **Uppdatera Puppa** i menyn (kör installern igen) |
-| uppa självt | jämför sin version med GitHub | `uppa self-update` (ingår i `uppa update`): laddar ner, kontrollerar, byter fil och sparar den gamla som `uppa.py.bak`; i en git-klon körs `git pull` |
+| Uppa självt | jämför sin version med GitHub | `uppa self-update` (ingår i `uppa update`): laddar ner, kontrollerar, byter fil och sparar den gamla som `uppa.py.bak`; i en git-klon körs `git pull` |
 | .NET-verktyg | globala `dotnet tool`s | `dotnet tool update -g` |
 
 Undermodulerna till Az och Microsoft.Graph (141 st) läses ur meta-modulernas manifest (`ModuleList` / `RequiredModules`) och följer med när meta-modulen uppdateras. Därför tar en skanning ungefär 7 s i stället för ~2 min.
@@ -46,7 +46,7 @@ Undermodulerna till Az och Microsoft.Graph (141 st) läses ur meta-modulernas ma
   ██▄   ▄██     uppa 1.1.0
    ▀█████▀
   Senast kollat 13 min sedan
-  ● uppa  ● brew 2  ● PowerShell 8  ● az-tillägg  ● npm 1  ● .NET  ● Puppa
+  ● Uppa  ● brew 2  ● PowerShell 8  ● az-tillägg  ● npm 1  ● .NET  ● Puppa
 
    ❯ 1  Uppdatera allt          11 st · 4 nya huvudversioner
      2  Välj själv…             kryssa i det som ska uppdateras
@@ -90,7 +90,7 @@ uppa clean pwsh           # ta bort gamla modulversioner som Update-Module lämn
 uppa ignore pwsh:Az       # hoppa över något (unignore för att ångra)
 uppa nudge enable         # en rad om dagen i nya terminaler när något är inaktuellt
 uppa schedule enable [--daily] [--at 07:30]   # launchd / Task Scheduler / cron; hoppar över sudo/UAC och rapporterar
-uppa self-update          # hämta senaste uppa  (i menyn: Uppdatera uppa – startar om i nya versionen)
+uppa self-update          # hämta senaste Uppa  (i menyn: Uppdatera Uppa – startar om i nya versionen)
 uppa logout [-n]          # logga ut överallt: rensar sparade inloggningar för az, azd, m365, Az, Graph/Entra, PnP
 uppa logout --ps | iex    # i ett öppet pwsh-fönster: kopplar även ner EXO, Teams, PnP, Graph, Az, Partner Center, Power Apps
 uppa hej                  # ett skämt från Uppa

@@ -667,7 +667,7 @@ def github_version(name, filename):
 
 class Self(Source):
     """uppa självt: jämför den här versionen med GitHub."""
-    key, title = "self", "uppa"
+    key, title = "self", "Uppa"
 
     def available(self):
         return True
@@ -680,7 +680,7 @@ class Self(Source):
 
     def tasks(self, items, plan_keys):
         cmd = [sys.executable, os.path.realpath(__file__), "self-update", "--yes", "--no-anim"]
-        return [Task("uppa (sig själv)", cmd, "uppa", items=items)] if items else []
+        return [Task("Uppa (sig själv)", cmd, "uppa", items=items)] if items else []
 
 
 class Puppa(Source):
@@ -2566,7 +2566,7 @@ def choose(rows, title="", msg="", mood="happy", sub="", status=None, start=None
     return choice
 
 
-SHORT = {"self": "uppa", "brew": "brew", "winget": "winget", "pwsh": "PowerShell", "az": "az-tillägg",
+SHORT = {"self": "Uppa", "brew": "brew", "winget": "winget", "pwsh": "PowerShell", "az": "az-tillägg",
          "npm": "npm", "dotnet": ".NET", "puppa": "Puppa"}
 
 
@@ -2700,7 +2700,7 @@ def menu(a):
                 dict(label="Installera grundpaket…", hint="bas · m365 · azure", value="install"),
                 dict(label="Installera Puppa", hint="PowerShell-uppgifter med några knapptryck", value="puppa"),
                 dict(label="Uppdatera Puppa", hint=puppa_hint, value="puppa-update"),
-                dict(label="Uppdatera uppa", hint=self_hint, value="self"),
+                dict(label="Uppdatera Uppa", hint=self_hint, value="self"),
                 dict(label="Doctor", hint="inloggningar och hälsokoll", value="doctor"),
                 dict(label="Logga ut från allt", hint="Graph · Az · PnP · az · m365", value="logout", key="u"),
                 dict(label="Skanna om", hint="hämta färska versioner", value="refresh", key="r"),
