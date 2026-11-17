@@ -35,7 +35,7 @@ from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 HOME = Path.home()
 DIR = HOME / ".uppa"
 CACHE = DIR / "cache.json"
@@ -171,21 +171,22 @@ class Live:
         self.prev = []
 
 
-LOGO = "▲"
+LOGO = "U›"
 QUIPS = [
     "Frågar Homebrew snällt om nyheter…",
     "PowerShell Gallery tar sin fika. Strax.",
     "Räknar versioner. Det är fler än man tror.",
-    "Ingen panik, det här är bara läsning.",
-    "npm funderar på sina beroenden…",
+    "Det här är bara läsning. Inget ändras.",
     "Kollar om någon släppt en .1 i natt.",
-    "Semver: ett löfte, inte en garanti.",
+    "Semver är ett löfte. Inte en garanti.",
+    "-WhatIf är mitt mellannamn.",
 ]
+DIRTY = False      # något har skrivits ut som användaren bör hinna läsa innan skärmen töms
 
 
 def banner():
     print()
-    print(fit(f"  {c(SHADE[1], '( ◕ ‿ ◕ )')}  {bold('uppa')} {dim(VERSION + ' · PowerShell & Microsoft-CLI')}"))
+    print(fit(f"  {accent(bold(LOGO))}  {bold('uppa')} {dim(VERSION + ' · PowerShell & Microsoft-CLI')}"))
     print()
 
 
@@ -650,45 +651,99 @@ class Winget(Source):
         return out
 
 
-SOURCES = [Brew(), Winget(), Pwsh(), AzExt(), Npm(), Dotnet()]
+def github_version(name, filename):
+    """VERSION i ett skript på GitHub (raw), eller None om det inte går att nå."""
+    repo, branch = repo_for(name)
+    try:
+        req = urllib.request.Request(f"https://raw.githubusercontent.com/{repo}/{branch}/{filename}",
+                                     headers={"User-Agent": "uppa/" + VERSION, "Cache-Control": "no-cache"})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            text = r.read().decode("utf-8", "replace")
+    except Exception:
+        return None, None
+    m = re.search(r'^VERSION\s*=\s*["\']([^"\']+)', text, re.M)
+    return (m.group(1) if m else None), text
+
+
+class Self(Source):
+    """uppa självt: jämför den här versionen med GitHub."""
+    key, title = "self", "uppa"
+
+    def available(self):
+        return True
+
+    def scan(self):
+        lat, _ = github_version("uppa", "uppa.py")
+        repo, branch = repo_for("uppa")
+        where = "utvecklingskopia (git)" if is_git_checkout() else f"github.com/{repo}"
+        return [Item("self", "uppa", VERSION, lat or VERSION, label="uppa")], where
+
+    def tasks(self, items, plan_keys):
+        cmd = [sys.executable, os.path.realpath(__file__), "self-update", "--yes", "--no-anim"]
+        return [Task("uppa (sig själv)", cmd, "uppa", items=items)] if items else []
+
+
+class Puppa(Source):
+    """Syskonverktyget Puppa: visas alltid, även när det inte är installerat."""
+    key, title = "puppa", "Puppa"
+
+    def available(self):
+        return True
+
+    def latest(self):
+        return github_version("puppa", "puppa.py")[0]
+
+    def scan(self):
+        lat = self.latest()
+        if not have("puppa"):
+            hint = "inte installerad → uppa install puppa" if lat else "inte installerad · inte publicerad än"
+            return [], hint
+        m = re.search(r"\d+\.\d+(\.\d+)?", run(["puppa", "--version"], timeout=30)[1])
+        cur = m.group(0) if m else "?"
+        return [Item("puppa", "puppa", cur, lat or cur, label="Puppa")], "PowerShell med några knapptryck"
+
+    def tasks(self, items, plan_keys):
+        return [Task("Puppa", sibling_installer("puppa"), "puppa", items=items)] if items else []
+
+
+SOURCES = [Self(), Brew(), Winget(), Pwsh(), AzExt(), Npm(), Dotnet(), Puppa()]
 BY_KEY = {s.key: s for s in SOURCES}
 
 
 # ───────────────────────────── Uppa, maskoten ─────────────────────────────
-# Uppa är en liten luftballong. Den åker uppåt när saker uppdateras.
-FACES = {"happy": "◕ ‿ ◕", "blink": "– ‿ –", "look": "◔ ‿ ◔", "wait": "◕ _ ◕", "sad": "◕ ⁀ ◕",
-         "proud": "^ ‿ ^", "wow": "◕ o ◕"}
+# Uppa är ett tjockt U, lillasyster Puppas storebror. Ansiktet bor i U:ets skål.
+EYES = {"happy": " ◕ ◕ ", "blink": " ─ ─ ", "left": "◕ ◕  ", "right": "  ◕ ◕", "wait": " ◕ ◕ ", "look": "◔ ◔  ",
+        "sad": " ◕ ◕ ", "proud": " ^ ^ ", "wow": " ◕ ◕ ", "worry": " ◔ ◔ ", "sleep": " ─ ─ "}
+MOUTH = {"happy": "  ‿  ", "blink": "  ‿  ", "left": " ‿   ", "right": "   ‿ ", "wait": "  ─  ", "look": " ‿   ",
+         "sad": "  ⁀  ", "proud": "  ◡  ", "wow": "  o  ", "worry": "  ~  ", "sleep": "  ᶻ  "}
+ART = ["██     ██", "██{e}██", "██{m}██", "██▄   ▄██", " ▀█████▀ "]
+SHADE = ["38;5;121", "38;5;85", "38;5;49", "38;5;43", "38;5;36"]      # ljus topp → mörkare botten
+SAD_SHADE = ["38;5;152", "38;5;115", "38;5;109", "38;5;72", "38;5;66"]
+ART_W = 9
 JOKES = [
+    "Jag heter Uppa. Det står för uppdatera på autopilot. Typ.",
+    "Jag är ett U. Det står för Uppdaterad. Eller Underbar. Du väljer.",
     "Har du testat att stänga av och sätta på den igen? Jag menar Update-Module.",
-    "Min favoritmodul är ImportExcel. Jag är en enkel ballong.",
+    "Jag är formad som en kopp. Full av uppdateringar.",
     "Det finns två sorters admins: de som tar backup, och de som kommer att göra det.",
     "Connect-MgGraph: för att en inloggning om dagen aldrig räcker.",
     "Jag går aldrig sönder. Jag får bara nya huvudversioner.",
+    "-WhatIf är mitt mellannamn. -Confirm är mitt efternamn.",
     "AzureAD-modulen? Vi pratar inte om AzureAD-modulen.",
-    "Varför flyger jag så högt? Jag har Global Admin.",
-    "Semver är ett löfte. Inte en garanti.",
-    "-WhatIf är mitt mellannamn.",
-    "Jag är full av varmluft. Och PowerShell.",
+    "Puppa kör recepten. Jag ser till att hon har fräscha moduler.",
 ]
 
 
-ART = ["  ╭───────╮  ",
-       " │  {face}  │ ",
-       "  ╲       ╱  ",
-       "   ╲_____╱   ",
-       "    ╎   ╎    ",
-       "    ▝███▘    "]
-SHADE = ["38;5;121", "38;5;49", "38;5;43", "38;5;36"]   # ljus topp → mörkare botten
-
-
 def uppa_art(mood="happy"):
-    face = FACES.get(mood, FACES["happy"])
-    l, r = ART[1].split("{face}")
-    return [c(SHADE[0], ART[0]), c(SHADE[1], l) + bold(face) + c(SHADE[1], r), c(SHADE[2], ART[2]),
-            c(SHADE[3], ART[3]), dim(ART[4]), c("38;5;179", ART[5])]
+    e, m = EYES.get(mood, EYES["happy"]), MOUTH.get(mood, MOUTH["happy"])
+    sh = SAD_SHADE if mood == "sad" else SHADE
+
+    def mid(k, inner):
+        return c(sh[k], "██") + bold(inner) + c(sh[k], "██")
+    return [c(sh[0], ART[0]), mid(1, e), mid(2, m), c(sh[3], ART[3]), c(sh[4], ART[4])]
 
 
-def wrap(msg, w, maxl=3):
+def wrap(msg, w, maxl=4):
     lines, cur = [], ""
     for word in ANSI.sub("", msg).split():
         if cur and len(cur) + 1 + len(word) > w:
@@ -705,13 +760,16 @@ def wrap(msg, w, maxl=3):
 
 
 def uppa_frame(msg="", mood="happy", lift=0, top="", sub=""):
+    """Maskot + pratbubbla. Under 44 kolumner döljs maskoten."""
     w = width()
-    if w < 44:                                   # för smalt för ballong + pratbubbla
-        out = [f"  {accent(LOGO)} " + l if k == 0 else "    " + l for k, l in enumerate(wrap(msg, w - 6, 4))] \
-            if msg else []
+    if w < 44:
+        lines = []
+        if msg:
+            for k, l in enumerate(wrap(msg, w - 6, 4)):
+                lines.append((f"  {accent(bold(LOGO))} " if k == 0 else "     ") + l)
         if sub:
-            out.append("    " + dim(cut(sub, w - 6)))
-        return out
+            lines.append("     " + dim(cut(sub, w - 7)))
+        return lines
     rows = [""] * 7
     for k, r in enumerate(uppa_art(mood)):
         rows[k + 1 - lift] = r
@@ -719,41 +777,55 @@ def uppa_frame(msg="", mood="happy", lift=0, top="", sub=""):
         rows[0] = top
     bub = []
     if msg:
-        lines = wrap(msg, max(14, min(60, w - 23)), 4)
+        lines = wrap(msg, max(14, min(60, w - 20)), 4)
         iw = max(len(l) for l in lines)
         bub = [dim("╭" + "─" * (iw + 2) + "╮")] + \
               [dim("│ ") + l + " " * (iw - len(l)) + dim(" │") for l in lines] + \
               [dim("╰" + "─" * (iw + 2) + "╯")]
-    out = []
+    res = []
     for k in range(7):
-        line = "  " + pad(rows[k], 13)
+        line = "  " + pad(rows[k], ART_W + 1)
         if 0 <= k - 1 < len(bub):
             line += " " + (accent("◂ ") if k == 2 else "  ") + bub[k - 1]
         elif sub and k - 1 == len(bub):
-            line += "    " + dim(cut(sub, w - 22))
-        out.append(fit(line, w))
-    while out and not ANSI.sub("", out[-1]).strip():
-        out.pop()
-    return out
+            line += "    " + dim(cut(sub, w - ART_W - 9))
+        res.append(fit(line, w))
+    while res and not ANSI.sub("", res[-1]).strip():
+        res.pop()
+    while res and not ANSI.sub("", res[0]).strip():
+        res.pop(0)
+    return res
 
 
 def say(msg, mood="happy", sub=""):
+    global DIRTY
+    DIRTY = True
     if TTY:
         print("\n".join(uppa_frame(msg, mood, sub=sub)))
     else:
         print(f"  {LOGO} {msg}")
 
 
+def idle_mood(t):
+    """Blinkar då och då, tittar runt ibland."""
+    if t % 4.1 < 0.16:
+        return "blink"
+    phase = int(t / 2.3) % 7
+    return {2: "left", 5: "right"}.get(phase, "happy")
+
+
 def celebrate(msg):
+    global DIRTY
+    DIRTY = True
     if not ANIM:
         return say(msg, "proud")
     cols = ["38;5;121", "38;5;214", "38;5;80", "38;5;212", "38;5;227"]
     live = Live()
     sys.stdout.write("\033[?25l")
     try:
-        for f in range(16):
+        for f in range(14):
             top = "".join(c(random.choice(cols), random.choice("✦✧⋆·*")) if random.random() < .35 else " "
-                          for _ in range(15))
+                          for _ in range(ART_W + 1))
             live.draw(uppa_frame(msg, "proud" if f % 5 else "blink", lift=f % 2, top=top))
             time.sleep(0.09)
         live.draw(uppa_frame(msg, "proud"))
@@ -792,7 +864,8 @@ class Spinner:
         i, t0 = 0, time.time()
         while not self.stop.is_set():
             el = time.time() - t0
-            mood = "blink" if el % 3.3 < 0.18 else ("look" if int(el / 1.7) % 3 == 1 else "wait")
+            im = idle_mood(el)
+            mood = "wait" if im == "happy" else im
             self.live.draw(uppa_frame(self.text(i, el), mood, lift=int(el * 1.5) % 2))
             i += 1
             time.sleep(0.09)
@@ -928,6 +1001,8 @@ def print_status(cache, words=None, show_all=False, hints=True):
         majors += len([i for i in outd if i.current and i.latest != "?" and major_bump(i.current, i.latest)])
         if data.get("error"):
             right = red("✘ fel")
+        elif s.key == "puppa" and not its:
+            right = dim("○ inte installerad")
         elif outd:
             right = yellow(f"{len(outd)} att uppdatera")
         else:
@@ -988,7 +1063,7 @@ def ask(prompt, default=True, extra=""):
         return default
     opts = "[J/n" + extra + "]" if default else "[j/N" + extra + "]"
     try:
-        a = input(f"  {prompt} {opts} ").strip().lower()
+        a = input(fit(f"  {accent('?')} {bold(prompt)} {dim(opts)}") + " ").strip().lower()
     except (EOFError, KeyboardInterrupt):
         print()
         return False
@@ -1155,11 +1230,11 @@ def summarize(tasks, logpath, unattended=False):
     print(dim(f"\n  logg: {str(logpath).replace(str(HOME), '~')}"))
     print()
     if not fail and not skip:
-        celebrate(f"Allt uppat! {len(ok)} jobb klara. Jag har aldrig svävat högre.")
+        celebrate(f"Klart! {len(ok)} jobb gick vägen. Allt är uppat.")
     elif fail:
-        say(f"Aj. {len(fail)} gick inte vägen, titta i loggen. Resten gick bra.", "sad")
+        say(f"Det gick inte hela vägen. {len(fail)} misslyckades – loggen visar varför, resten gick bra.", "sad")
     else:
-        say(f"{len(skip)} hoppades över eftersom de behöver dig. Kör uppa update när du sitter vid datorn.", "wait")
+        say(f"Klart, men {len(skip)} behöver dig (lösenord eller UAC). Kör uppa update när du sitter vid datorn.", "worry")
     print()
     st = load_json(STATE, {})
     st["last_run"] = {"time": time.time(), "unattended": unattended, "ok": len(sum((t.items for t in ok), [])),
@@ -1171,12 +1246,14 @@ def summarize(tasks, logpath, unattended=False):
 def do_update(items, args, unattended=False):
     items = [i for i in items if i.outdated and not i.manual]
     if not items:
-        print(f"  {green('✔')} Inget att uppdatera.\n")
+        say("Inget att uppdatera. Allt är redan fräscht.", "proud")
+        print()
         return 0
     tasks = build_plan(items)
     print_plan(tasks)
     if args.dry_run:
-        print(dim("  torrkörning – inget ändrades.\n"))
+        say("Torrkörning: inget kördes. Så här skulle det se ut.", "happy")
+        print()
         return 0
     if not (args.yes or unattended):
         a = ask("Kör?", True, "/c")
@@ -1184,7 +1261,8 @@ def do_update(items, args, unattended=False):
             show_changes(items)
             a = ask("Kör?", True)
         if not a:
-            print(dim("  Avbrutet.\n"))
+            say("Okej, inget ändrat.", "happy")
+            print()
             return 1
     logpath = run_plan(tasks, args.jobs, unattended)
     summarize(tasks, logpath, unattended)
@@ -1216,6 +1294,8 @@ def gh_repo_for(i):
                 url = "https://github.com/Azure/azure-powershell"
             elif i.name.startswith("Microsoft.Graph"):
                 url = "https://github.com/microsoftgraph/msgraph-sdk-powershell"
+        elif i.source == "self":
+            url = "https://github.com/" + repo_for("uppa")[0]
         elif i.source == "az":
             url = "https://github.com/Azure/bicep" if i.name == "bicep" else ""
     except Exception:
@@ -1371,7 +1451,7 @@ def pick(rows, chosen, title, line_fn, can_pick=lambda v: True, hotkeys=None, he
         h = max(4, shutil.get_terminal_size((100, 30)).lines - 4)
         top = min(max(top, pos - h + 1), pos)
         top = max(0, min(top, max(0, len(rows) - h)))
-        out = [f"  {bold(title)}  {dim(f'{len(chosen)} valda')}"]
+        out = [f"  {accent('▍')}{bold(title)}  {dim(f'{len(chosen)} valda')}"]
         for k in range(top, min(len(rows), top + h)):
             kind, v = rows[k]
             if kind == "head":
@@ -1530,6 +1610,14 @@ def nudge_hook():
         items = [i for i in items_from(cache) if i.outdated and not i.manual]
         if not items:
             return
+        me = next((i for i in items if i.source == "self"), None)
+        if me:
+            print(f"  {accent(LOGO)} {bold('uppa')} {me.latest} finns på GitHub → {bold('uppa self-update')}")
+            items = [i for i in items if i is not me]
+            if not items:
+                st["nudged_day"] = datetime.now().strftime("%Y-%m-%d")
+                save_json(STATE, st)
+                return
         srcs = {}
         for i in items:
             srcs[BY_KEY[i.source].title] = srcs.get(BY_KEY[i.source].title, 0) + 1
@@ -1801,34 +1889,43 @@ def sibling_installer(name):
     return ["sh", "-c", f"curl -fsSL {base}/install.sh | sh"]
 
 
+def is_git_checkout():
+    return (Path(os.path.realpath(__file__)).parent / ".git").exists()
+
+
 def cmd_self_update(a):
     me = Path(os.path.realpath(__file__))
-    if DIR.resolve() not in me.parents:
-        print(f"  uppa körs från {me.parent} (en utvecklingskopia). Uppdatera den med git pull i stället.")
-        return 0
+    if is_git_checkout():                        # utvecklingskopia: hämta med git
+        if a.dry_run:
+            print(f"  skulle köra: git -C \"{me.parent}\" pull --ff-only")
+            return 0
+        rc, out, err = run(["git", "-C", str(me.parent), "pull", "--ff-only"], timeout=120)
+        print(("  " + green("✔") + " " if rc == 0 else "  " + red("✘") + " ") + (out or err).strip().splitlines()[-1])
+        return rc
+    new, text = github_version("uppa", "uppa.py")
     repo, branch = repo_for("uppa")
-    url = f"https://raw.githubusercontent.com/{repo}/{branch}/uppa.py"
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "uppa/" + VERSION})
-        with urllib.request.urlopen(req, timeout=30) as r:
-            text = r.read().decode("utf-8")
-    except Exception as e:
-        sys.exit(f"  kunde inte hämta {url}: {e}")
-    m = re.search(r'^VERSION = "([^"]+)"', text, re.M)
-    new = m.group(1) if m else "?"
-    if not newer(new, VERSION):
+    if not text:
+        sys.exit(f"  kunde inte nå github.com/{repo} ({branch})")
+    if not newer(new or "", VERSION):
         print(f"  {green('✔')} uppa {VERSION} är senaste versionen")
         return 0
     import ast
-    ast.parse(text)
+    try:
+        ast.parse(text)
+    except SyntaxError:
+        sys.exit("  den nedladdade versionen är trasig, behåller nuvarande")
     if a.dry_run:
         print(f"  skulle uppdatera uppa {VERSION} → {new}")
         return 0
+    if not a.yes and not ask(f"Uppdatera uppa {VERSION} → {new}?", True):
+        return 1
+    backup = me.with_suffix(".py.bak")
+    shutil.copy2(me, backup)                     # går att backa med: mv ~/.uppa/uppa.py.bak ~/.uppa/uppa.py
     tmp = me.with_suffix(".py.new")
     tmp.write_text(text, encoding="utf-8")
     os.replace(tmp, me)
     print()
-    celebrate(f"Jag är uppdaterad! {VERSION} → {new}.")
+    celebrate(f"Jag är uppdaterad! {VERSION} → {new}. Den gamla versionen ligger kvar som uppa.py.bak.")
     print()
     return 0
 
@@ -2043,7 +2140,7 @@ def cmd_scan(a):
             print(fit(dim(f"                   →  uppa install {name}")))
     print()
     if bas_missing:
-        say(f"Du saknar {len(bas_missing)} saker från grundpaketet. Kör uppa install bas så fixar jag det.", "wow")
+        say(f"Du saknar {len(bas_missing)} saker från grundpaketet. Kör uppa install bas – det går fort.", "worry")
     else:
         say("Grundpaketet är komplett. Du är redo för vad som helst. Nästan.", "proud")
     print()
@@ -2166,10 +2263,12 @@ def cmd_install(a):
     tasks = install_tasks(todo)
     print_plan(tasks)
     if a.dry_run:
-        print(dim("  torrkörning – inget ändrades.\n"))
+        say("Torrkörning: inget kördes. Så här skulle det se ut.", "happy")
+        print()
         return 0
     if not a.yes and not ask("Installera?", True):
-        print(dim("  Avbrutet.\n"))
+        say("Okej, inget ändrat.", "happy")
+        print()
         return 1
     logpath = run_plan(tasks, a.jobs)
     summarize(tasks, logpath)
@@ -2180,6 +2279,160 @@ def cmd_install(a):
     return 1 if any(t.state == "fail" for t in tasks) else 0
 
 
+# ───────────────────────────── logga ut ─────────────────────────────
+# Sessionsinloggningar (EXO, Teams, PartnerCenter, PowerApps) lever bara i det pwsh-fönster där de gjordes.
+# De loggas ut med:  uppa logout --ps | iex   (körs i det öppna fönstret)
+LOGOUT_PS_LINES = [
+    "if (Get-Module ExchangeOnlineManagement) { Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue; 'Exchange Online: utloggad' }",
+    "if (Get-Module MicrosoftTeams) { Disconnect-MicrosoftTeams -ErrorAction SilentlyContinue; 'Teams: utloggad' }",
+    "if (Get-Module PnP.PowerShell) { Disconnect-PnPOnline -ClearPersistedLogin -ErrorAction SilentlyContinue; 'PnP: utloggad' }",
+    "if (Get-Module Microsoft.Entra*) { Disconnect-Entra -ErrorAction SilentlyContinue | Out-Null; 'Entra: utloggad' }",
+    "if (Get-Module Microsoft.Graph.Authentication) { Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null; 'Graph: utloggad' }",
+    "if (Get-Module Az.Accounts) { Disconnect-AzAccount -ErrorAction SilentlyContinue | Out-Null; Clear-AzContext -Scope Process -Force -ErrorAction SilentlyContinue; 'Az: utloggad' }",
+    "if (Get-Module PartnerCenter) { Disconnect-PartnerCenter -ErrorAction SilentlyContinue | Out-Null; 'Partner Center: utloggad' }",
+    "if (Get-Module Microsoft.PowerApps.Administration.PowerShell, Microsoft.PowerApps.PowerShell) { Remove-PowerAppsAccount -ErrorAction SilentlyContinue; 'Power Apps: utloggad' }",
+    "if (Get-Module Microsoft.Online.SharePoint.PowerShell) { Disconnect-SPOService -ErrorAction SilentlyContinue; 'SharePoint Online: utloggad' }",
+]
+
+
+def identity_cache():
+    base = Path(os.environ.get("LOCALAPPDATA", str(HOME / "AppData" / "Local"))) if IS_WIN else HOME
+    return base / ".IdentityService" / "msal.cache"
+
+
+def pnp_settings():
+    return HOME / ".m365pnppowershell" / "settings.json"
+
+
+def logout_plan():
+    """Vad som är inloggat/sparat just nu och hur det loggas ut. Läser bara konto-namn, aldrig tokens."""
+    plan = []
+    if have("az"):
+        rc, out, _ = run(["az", "account", "show", "--query", "user.name", "-o", "tsv"], timeout=60)
+        plan.append({"label": "Azure CLI", "who": out.strip() if rc == 0 else "",
+                     "steps": [("cmd", ["az", "logout"]), ("cmd", ["az", "account", "clear"])]})
+    if have("azd"):
+        rc, out, _ = run(["azd", "auth", "login", "--check-status"], timeout=60)
+        plan.append({"label": "Azure Developer CLI", "who": "inloggad" if rc == 0 and "Logged in" in out else "",
+                     "steps": [("cmd", ["azd", "auth", "logout"])]})
+    if have("m365"):
+        rc, out, _ = run(["m365", "status", "--output", "text"], timeout=60)
+        who = "" if rc != 0 or "Logged out" in out else (out.strip().splitlines() or ["inloggad"])[0]
+        plan.append({"label": "CLI for Microsoft 365", "who": who, "steps": [("cmd", ["m365", "logout"])]})
+    ctx = HOME / ".Azure" / "AzureRmContext.json"
+    if ctx.exists():
+        try:
+            data = json.loads(ctx.read_text(encoding="utf-8-sig"))
+            accts = sorted({(c.get("Account") or {}).get("Id", "") for c in (data.get("Contexts") or {}).values()} - {""})
+        except Exception:
+            accts = []
+        plan.append({"label": "Az PowerShell", "who": ", ".join(accts) + (f" ({len(data.get('Contexts', {}))} kontexter)" if accts else ""),
+                     "steps": [("ps", "Import-Module Az.Accounts; Clear-AzContext -Scope CurrentUser -Force")]})
+    rec = HOME / ".mg" / "mg.authrecord.json"
+    if rec.exists() or have("pwsh"):
+        who = ""
+        if rec.exists():
+            try:
+                who = json.loads(rec.read_text(encoding="utf-8")).get("username", "") or "sparad inloggning"
+            except Exception:
+                who = "sparad inloggning"
+        broker = " -SignOutFromBroker" if IS_WIN else ""
+        plan.append({"label": "Microsoft Graph / Entra", "who": who,
+                     "steps": [("ps", "if (Get-Module -ListAvailable Microsoft.Graph.Authentication) { "
+                                      f"Import-Module Microsoft.Graph.Authentication; Disconnect-MgGraph{broker} | Out-Null }}"),
+                               ("rm", rec)]})
+    pnp = pnp_settings()
+    if pnp.exists():
+        try:
+            n = len(json.loads(pnp.read_text(encoding="utf-8")).get("Cache") or [])
+        except Exception:
+            n = 0
+        plan.append({"label": "PnP PowerShell", "who": f"{n} sparad(e) inloggning(ar)" if n else "",
+                     "steps": [("ps", "Import-Module PnP.PowerShell; Disconnect-PnPOnline -ClearPersistedLogin"),
+                               ("pnpcache", pnp)]})
+    cache = identity_cache()
+    if cache.exists():
+        plan.append({"label": "Delad token-cache (Az/Graph)", "who": "finns",
+                     "steps": [("rm", cache)]})
+    return plan
+
+
+def do_step(kind, arg):
+    if kind == "cmd":
+        rc, out, err = run(arg, timeout=120)
+        return rc == 0 or bool(re.search(r"no (active )?(subscriptions|accounts)|not (logged|signed) in|logged out",
+                                         out + err, re.I))
+    if kind == "ps":
+        rc, _, _ = run(ps_cmd("$ErrorActionPreference='SilentlyContinue'; " + arg), timeout=180)
+        return True
+    if kind == "rm":
+        try:
+            Path(arg).unlink()
+        except FileNotFoundError:
+            pass
+        return not Path(arg).exists()
+    if kind == "pnpcache":                       # om -ClearPersistedLogin inte räckte: töm cachen (backup först)
+        try:
+            data = json.loads(Path(arg).read_text(encoding="utf-8"))
+            if data.get("Cache"):
+                shutil.copy2(arg, str(arg) + ".bak")
+                data["Cache"] = []
+                Path(arg).write_text(json.dumps(data, indent=2), encoding="utf-8")
+            return True
+        except Exception:
+            return False
+    return False
+
+
+def cmd_logout(a):
+    if a.ps:
+        print("\n".join(LOGOUT_PS_LINES))
+        return 0
+    banner()
+    with (nullcontext() if not ANIM else Spinner("Kollar vem du är inloggad som…")):
+        plan = logout_plan()
+    if not plan:
+        say("Jag hittar inget att logga ut från. Du är redan utloggad.", "happy")
+        return 0
+    W = min(width(), 104)
+    print(fit(section_head("SPARADE INLOGGNINGAR", "rensas så att alla nya fönster kräver ny inloggning", "", W)))
+    lw = min(max(len(e["label"]) for e in plan) + 2, max(16, W // 2))
+    for e in plan:
+        state = dim(e["who"]) if e["who"] else dim("ingen aktiv inloggning")
+        print(fit(f"     {yellow('●') if e['who'] else dim('○')} {pad(cut(e['label'], lw - 2), lw)}{state}"))
+    print()
+    print(fit(dim("     Exchange Online, Teams, Partner Center och Power Apps sparar bara i det öppna fönstret.")))
+    print(fit(dim("     Logga ut dem där med:  ") + bold("uppa logout --ps | iex")))
+    print()
+    if a.dry_run:
+        for e in plan:
+            for kind, arg in e["steps"]:
+                desc = show_cmd(arg) if kind == "cmd" else (f"pwsh: {arg}" if kind == "ps" else f"ta bort {arg}"
+                                                           if kind == "rm" else f"töm PnP-cachen i {arg}")
+                print(fit(dim(f"     {e['label']}: {desc}")))
+        print()
+        say("Torrkörning: inget kördes. Så här skulle det se ut.", "happy")
+        print()
+        return 0
+    if not a.yes and not ask("Logga ut från allt ovan?", False):
+        say("Okej, inget ändrat.", "happy")
+        print()
+        return 1
+    failed = []
+    for e in plan:
+        ok = all([do_step(kind, arg) for kind, arg in e["steps"]])
+        print(fit(f"   {green('✔') if ok else red('✘')} {e['label']}"))
+        if not ok:
+            failed.append(e["label"])
+    print()
+    if failed:
+        say(f"Det gick inte hela vägen: {', '.join(failed)} krånglade. Prova igen, eller logga ut manuellt.", "sad")
+    else:
+        say("Utloggad från allt. Nästa Connect-… frågar efter inloggning igen. I öppna pwsh-fönster: uppa logout --ps | iex", "proud")
+    print()
+    return 1 if failed else 0
+
+
 # ───────────────────────────── menu / cli ─────────────────────────────
 def get_cache(refresh):
     cache = load_json(CACHE, {})
@@ -2188,94 +2441,260 @@ def get_cache(refresh):
     return cache
 
 
-def menu_select(opts):
-    """opts = [(text, tips, action)]. Piltangenter + enter, siffra väljer direkt, q avbryter."""
-    pos, live = 0, Live()
+def new_screen():
+    """Töm skärmen inför en meny. Har något just skrivits ut får man läsa klart först."""
+    global DIRTY
+    if DIRTY:
+        pause()
+    DIRTY = False
+    if TTY:
+        sys.stdout.write("\033[H\033[2J")
+        sys.stdout.flush()
 
-    def draw():
+
+def pause():
+    if sys.stdin.isatty():
+        try:
+            print()
+            input(dim("   enter = tillbaka till menyn "))
+        except (EOFError, KeyboardInterrupt):
+            print()
+
+
+def choose(rows, title="", msg="", mood="happy", sub="", status=None, start=None, footer=None, screen=False):
+    """Piltangent-meny i Puppas stil. rows: ("head", text) eller dict(label, hint, value, key).
+    Siffra väljer direkt, q/esc avbryter (→ None). Uppa blinkar och tittar runt medan den väntar."""
+    if not sys.stdin.isatty():
+        return None
+    if screen:
+        new_screen()
+    sel = [k for k, r in enumerate(rows) if not isinstance(r, tuple)]
+    if not sel:
+        return None
+    keys, n = {}, 0
+    for k in sel:
+        r = rows[k]
+        if r.get("key"):
+            keys[r["key"]] = k
+        else:
+            n += 1
+            if n <= 9:
+                r["_num"] = str(n)
+                keys[str(n)] = k
+    pos = sel[0]
+    if start is not None:
+        for k in sel:
+            if rows[k]["value"] == start:
+                pos = k
+    top = 0
+    live = Live()
+    t0 = time.time()
+
+    def draw(mood_now):
+        nonlocal top
         w = width()
         lines = []
-        for k, (label, hint, act) in enumerate(opts):
+        if msg:
+            lines += uppa_frame(msg, mood_now, sub=sub)
+        if status:
+            lines += [""] + status()
+        lines.append("")
+        if title:
+            lines.append("  " + accent("▍") + bold(title))
+        narrow = w < 58
+        labels = [rows[k]["label"] for k in sel]
+        lw = min(max(len(x) for x in labels) + 2, max(10, w - 14 if narrow else min(34, w // 2)))
+        room = max(3, shutil.get_terminal_size((100, 30)).lines - len(lines) - 3)
+        top = min(max(top, pos - room + 1), pos)
+        top = max(0, min(top, max(0, len(rows) - room)))
+        if top > 0:
+            lines.append(dim("     ↑ fler"))
+        for k in range(top, min(len(rows), top + room)):
+            r = rows[k]
+            if isinstance(r, tuple):
+                lines.append("   " + dim(cut(r[1].upper(), w - 5)))
+                continue
             on = k == pos
-            key = "q" if act == "quit" else str(k + 1)
-            line = f"   {accent('❯') if on else ' '} {dim(key)}  " + pad(bold(accent(label)) if on else label, 28)
-            if hint and w >= 64:
-                line += dim(hint)
+            key = r.get("key") or r.get("_num") or " "
+            label = cut(r["label"], lw - 1)
+            label = bold(accent(label)) if on else label
+            if narrow:
+                line = f"  {accent('❯') if on else ' '}{dim(key)} {label}"
+            else:
+                line = f"   {accent('❯') if on else ' '} {dim(key)}  " + pad(label, lw)
+                if r.get("hint") and w >= 64:
+                    line += dim(r["hint"])
             lines.append(line)
-        lines += ["", dim("   ↑/↓ och enter · siffra väljer direkt · q avslutar")]
+        if top + room < len(rows):
+            lines.append(dim("     ↓ fler"))
+        lines.append("")
+        help_ = (footer or "↑/↓ · enter · siffra väljer · q tillbaka") if w >= 50 else "↑↓ enter · q"
+        lines.append(dim("   " + help_))
         live.draw(lines)
 
-    choice = None
+    choice, cur_mood, size = None, None, None
     with Keys() as kb:
-        size = None
         while True:
-            if size != term_size():
-                size = term_size()
-                draw()
-            ch = kb.read()
+            m = mood
+            if ANIM:
+                im = idle_mood(time.time() - t0)
+                m = im if mood == "happy" else ("blink" if im == "blink" else mood)
+            if size != term_size() or m != cur_mood:
+                size, cur_mood = term_size(), m
+                draw(m)
+            ch = kb.read(0.12)
             if ch is None:
                 continue
-            size = None
-            if ch in ("\x1b[A", "k"):
-                pos = (pos - 1) % len(opts)
-            elif ch in ("\x1b[B", "j"):
-                pos = (pos + 1) % len(opts)
-            elif ch.isdigit() and 1 <= int(ch) <= len(opts):
-                pos = int(ch) - 1
-                choice = opts[pos][2]
+            idx = sel.index(pos)
+            if ch in ("\x1b[A", "k", "\x1bOA"):
+                pos = sel[(idx - 1) % len(sel)]
+            elif ch in ("\x1b[B", "j", "\x1bOB"):
+                pos = sel[(idx + 1) % len(sel)]
+            elif ch in keys:
+                pos = keys[ch]
+                choice = rows[pos]["value"]
                 break
             elif ch in ("\r", "\n"):
-                choice = opts[pos][2]
+                choice = rows[pos]["value"]
                 break
-            elif ch in ("q", "\x1b", "\x03"):
+            elif ch in ("q", "\x1b", "\x03", "\x04"):
                 break
+            size = None
         live.clear()
-    if choice and choice != "quit":
-        print(f"   {accent('❯')} {bold(opts[pos][0])}\n")
+    if choice is not None and not screen:
+        print(fit(f"   {accent('❯')} {bold(rows[pos]['label'])}"))
     return choice
 
 
-def menu(a):
-    cache = get_cache(a.refresh)
-    outd = [i for i in items_from(cache) if i.outdated and not i.manual]
+SHORT = {"self": "uppa", "brew": "brew", "winget": "winget", "pwsh": "PowerShell", "az": "az-tillägg",
+         "npm": "npm", "dotnet": ".NET", "puppa": "Puppa"}
+
+
+def status_lines(cache):
+    """Kompakt statusrad under Uppa: en prick per källa, gul siffra där något kan uppdateras."""
+    w = width()
+    items = items_from(cache)
+    parts = []
+    for s in SOURCES:
+        data = cache.get("sources", {}).get(s.key)
+        if not data:
+            continue
+        n = len([i for i in items if i.source == s.key and i.outdated and not i.manual])
+        if s.key == "puppa" and not [i for i in items if i.source == "puppa"]:
+            parts.append(dim("○ Puppa"))
+        elif data.get("error"):
+            parts.append(red("● " + SHORT.get(s.key, s.key)))
+        elif n:
+            parts.append(yellow("● ") + SHORT.get(s.key, s.key) + " " + yellow(str(n)))
+        else:
+            parts.append(green("● ") + dim(SHORT.get(s.key, s.key)))
+    head = f"  {dim('Senast kollat')} {bold(ago(time.time() - cache.get('time', 0)))}"
+    lines, cur = [head], "  "
+    for p_ in parts:
+        if vlen(cur) + vlen(p_) + 2 > w - 2 and cur.strip():
+            lines.append(cur)
+            cur = "  "
+        cur += p_ + "  "
+    if cur.strip():
+        lines.append(cur)
+    return lines
+
+
+def greeting(cache):
+    """Uppa presenterar sig och föreslår nästa steg, som Puppa gör."""
+    items = items_from(cache)
+    outd = [i for i in items if i.outdated and not i.manual]
     n = len(outd)
     m = len([i for i in outd if i.current and i.latest != "?" and major_bump(i.current, i.latest)])
+    me = next((i for i in outd if i.source == "self"), None)
+    hi = "Hej! Jag är Uppa."
+    if not cache.get("sources"):
+        return f"{hi} Jag håller dina PowerShell- och Microsoft-verktyg fräscha. Ska vi skanna vad du har?", "worry"
+    if not have("pwsh"):
+        return f"{hi} PowerShell 7 saknas – ska jag installera grundpaketet åt dig?", "worry"
+    if me:
+        return f"{hi} Det finns en ny version av mig ({me.latest}). Ska vi uppa mig – och resten – nu?", "wow"
+    if n == 1:
+        return f"{hi} Jag hittade 1 sak som kan uppdateras. Ska jag uppa den?", "happy"
+    if n and m:
+        return f"{hi} Jag hittade {n} saker som kan uppdateras, varav {m} nya huvudversioner. Ska vi uppa dem?", "happy"
     if n:
-        msg = f"Hej! Det finns {n} uppdateringar" + (f", varav {m} nya huvudversioner" if m else "") + \
-              ". Ska vi uppa dem?"
-    else:
-        msg = "Hej! Allt är uppdaterat. Vill du kika på vad som finns installerat?"
-    print()
-    say(msg, "happy", sub=f"uppa {VERSION} · PowerShell & Microsoft-CLI")
-    print()
-    print_status(cache, hints=not sys.stdin.isatty())
+        return f"{hi} Jag hittade {n} saker som kan uppdateras. Ska vi uppa dem?", "happy"
+    return f"{hi} Allt är redan uppat – jag har inget att göra. Underbart.", "proud"
+
+
+def menu(a):
+    global DIRTY
+    cache = get_cache(a.refresh)
     if not sys.stdin.isatty():
+        msg, mood = greeting(cache)
+        say(msg, mood, sub=f"uppa {VERSION} · PowerShell & Microsoft-CLI")
+        print()
+        print_status(cache)
         return
-    opts = [("Uppdatera allt", f"{n} st", "update"),
-            ("Välj själv…", "kryssa i en lista", "select"),
-            ("Vad är nytt?", "release notes innan du uppdaterar", "changes"),
-            ("Skanna installerat", "moduler, verktyg och grundpaket", "scan"),
-            ("Installera grundpaket…", "bas · m365 · azure", "install"),
-            ("Doctor", "inloggningar och hälsokoll", "doctor"),
-            ("Avsluta", "", "quit")]
-    if not n:
-        opts = opts[3:]
-    action = menu_select(opts)
-    a.names, a.all = [], False
-    if action == "update":
-        do_update(items_from(cache), a)
-    elif action == "select":
-        chosen = checklist(items_from(cache))
-        if chosen:
-            do_update(chosen, a)
-    elif action == "changes":
-        show_changes(items_from(cache))
-    elif action == "scan":
-        cmd_scan(a)
-    elif action == "install":
-        cmd_install(a)
-    elif action == "doctor":
-        cmd_doctor(a)
+    last = None
+    while True:
+        cache = load_json(CACHE, {}) or cache
+        items = items_from(cache)
+        outd = [i for i in items if i.outdated and not i.manual]
+        n = len(outd)
+        m = len([i for i in outd if i.current and i.latest != "?" and major_bump(i.current, i.latest)])
+        msg, mood = greeting(cache)
+        rows = [dict(label="Uppdatera allt", hint=f"{n} st" + (f" · {m} nya huvudversioner" if m else ""),
+                     value="update"),
+                dict(label="Välj själv…", hint="kryssa i det som ska uppdateras", value="select"),
+                dict(label="Visa allt inaktuellt", hint="version för version", value="status"),
+                dict(label="Vad är nytt?", hint="release notes innan du uppdaterar", value="changes"),
+                dict(label="Skanna installerat", hint="moduler, verktyg och grundpaket", value="scan"),
+                dict(label="Installera grundpaket…", hint="bas · m365 · azure", value="install"),
+                dict(label="Installera Puppa", hint="PowerShell-uppgifter med några knapptryck", value="puppa"),
+                dict(label="Doctor", hint="inloggningar och hälsokoll", value="doctor"),
+                dict(label="Logga ut från allt", hint="Graph · Az · PnP · az · m365", value="logout", key="u"),
+                dict(label="Skanna om", hint="hämta färska versioner", value="refresh", key="r"),
+                dict(label="Avsluta", value="quit", key="q")]
+        if not n:
+            rows = [r for r in rows if r["value"] not in ("update", "select", "status", "changes")]
+        if have("puppa"):
+            rows = [r for r in rows if r["value"] != "puppa"]
+        v = choose(rows, msg=msg, mood=mood, status=lambda: status_lines(cache), start=last,
+                   footer="↑/↓ · enter · siffra väljer · q avslutar" if width() >= 50 else None,
+                   sub=f"uppa {VERSION}", screen=True)
+        last = v
+        if v in (None, "quit"):
+            print()
+            say(random.choice(["Hej då!", "Vi ses!", "Hej då! Håll modulerna fräscha.",
+                               "Hej då! Jag håller koll på versionerna så länge."]), "happy")
+            print()
+            return
+        print()
+        a.names, a.all, a.ps = [], False, False
+        if v == "update":
+            do_update(items_from(cache), a)
+        elif v == "select":
+            chosen = checklist(items_from(cache))
+            if chosen:
+                do_update(chosen, a)
+            else:
+                say("Okej, inget valt.", "happy")
+        elif v == "status":
+            print_status(cache)
+        elif v == "changes":
+            show_changes(items_from(cache))
+        elif v == "scan":
+            cmd_scan(a)
+        elif v == "install":
+            cmd_install(a)
+        elif v == "puppa":
+            a.names = ["puppa"]
+            cmd_install(a)
+        elif v == "doctor":
+            cmd_doctor(a)
+        elif v == "logout":
+            cmd_logout(a)
+        elif v == "refresh":
+            cache = scan()
+            say("Färska versioner hämtade.", "proud")
+        DIRTY = True
 
 
 def main(argv=None):
@@ -2312,6 +2731,8 @@ def main(argv=None):
     ins.add_argument("names", nargs="*")
     sub.add_parser("hej", help="säg hej till Uppa")
     common(sub.add_parser("self-update", help="uppdatera uppa själv"))
+    lo = common(sub.add_parser("logout", help="logga ut från Graph, Az, PnP, az, m365 … (sparade inloggningar)"))
+    lo.add_argument("--ps", action="store_true", help="skriv ut PowerShell som loggar ut det öppna fönstret: uppa logout --ps | iex")
     cl = common(sub.add_parser("clean", help="städa gamla versioner"))
     cl.add_argument("what", nargs="?", default="pwsh")
     ig = sub.add_parser("ignore", help="ignorera källa:namn")
@@ -2405,11 +2826,13 @@ def main(argv=None):
         return cmd_scan(a)
     if a.cmd == "install":
         sys.exit(cmd_install(a))
+    if a.cmd == "logout":
+        sys.exit(cmd_logout(a))
     if a.cmd == "self-update":
         sys.exit(cmd_self_update(a))
     if a.cmd == "hej":
         print()
-        say(random.choice(JOKES), random.choice(["happy", "proud", "look", "wow"]))
+        say(random.choice(JOKES), random.choice(["happy", "proud", "wow", "left"]))
         print()
         return
     if a.cmd == "clean":

@@ -111,6 +111,7 @@ if ($OnWindows) {
     # Citera bara exe-filen: py-startaren skickar annars vidare ett citerat "-3" till python.exe
     $launcher = '"' + $py[0] + '"' + ((@($py | Select-Object -Skip 1) | ForEach-Object { " $_" }) -join '') +
                 ' "%USERPROFILE%\.uppa\uppa.py" %*'
+    Remove-Item (Join-Path $bin 'uppa.cmd') -Force -ErrorAction SilentlyContinue
     Set-Content -Path (Join-Path $bin 'uppa.cmd') -Value "@echo off`r`n$launcher" -Encoding ASCII
     $user = [Environment]::GetEnvironmentVariable('Path', 'User')
     if (-not $user) { $user = '' }
@@ -123,6 +124,7 @@ if ($OnWindows) {
     $bin = Join-Path $HOME '.local/bin'
     New-Item -ItemType Directory -Force -Path $bin | Out-Null
     $shim = Join-Path $bin 'uppa'
+    Remove-Item $shim -Force -ErrorAction SilentlyContinue   # symlänk? skriv inte genom den
     Set-Content -Path $shim -Value "#!/usr/bin/env sh`nexec `"$($py[0])`" `"$target`" `"`$@`"`n" -NoNewline
     chmod +x $shim
     if ((($env:PATH -split ':') -notcontains $bin)) {

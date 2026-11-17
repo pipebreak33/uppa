@@ -42,7 +42,8 @@ else
   mv "$DIR/uppa.py.new" "$DIR/uppa.py"
 fi
 
-# 3. Startkommando i ~/.local/bin
+# 3. Startkommando i ~/.local/bin (ta bort först: är det en symlänk ska vi inte skriva genom den)
+rm -f "$BIN/uppa"
 cat > "$BIN/uppa" <<SHIM
 #!/usr/bin/env sh
 exec "$PY" "$DIR/uppa.py" "\$@"
