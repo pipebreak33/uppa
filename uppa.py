@@ -2,7 +2,7 @@
 """uppa – håller dina PowerShell- och Microsoft-CLI-verktyg uppdaterade, och bara dem.
 Täcker det du faktiskt har installerat: PowerShell 7 och dess moduler (Az, Graph, EXO, Teams, PnP …),
 Azure CLI + az-tillägg/Bicep, .NET + globala dotnet-verktyg, och Microsofts CLI:er i npm -g (CLI for Microsoft 365).
-Syskonet Puppa (github.com/pipebreak33/puppa) installeras och uppdateras också via uppa.
+Kusinen Puppa (github.com/pipebreak33/puppa) installeras och uppdateras också via uppa.
 
   uppa                     meny
   uppa status [källa|namn] vad är inaktuellt (-a visar allt)
@@ -684,7 +684,7 @@ class Self(Source):
 
 
 class Puppa(Source):
-    """Syskonverktyget Puppa: visas alltid, även när det inte är installerat."""
+    """Kusinen Puppa: visas alltid, även när den inte är installerad."""
     key, title = "puppa", "Puppa"
 
     def available(self):
@@ -711,7 +711,7 @@ BY_KEY = {s.key: s for s in SOURCES}
 
 
 # ───────────────────────────── Uppa, maskoten ─────────────────────────────
-# Uppa är ett tjockt U, lillasyster Puppas storebror. Ansiktet bor i U:ets skål.
+# Uppa är ett tjockt U, kusin till Puppa (P:et). Ansiktet bor i U:ets skål.
 EYES = {"happy": " ◕ ◕ ", "blink": " ─ ─ ", "left": "◕ ◕  ", "right": "  ◕ ◕", "wait": " ◕ ◕ ", "look": "◔ ◔  ",
         "sad": " ◕ ◕ ", "proud": " ^ ^ ", "wow": " ◕ ◕ ", "worry": " ◔ ◔ ", "sleep": " ─ ─ "}
 MOUTH = {"happy": "  ‿  ", "blink": "  ‿  ", "left": " ‿   ", "right": "   ‿ ", "wait": "  ─  ", "look": " ‿   ",
@@ -730,7 +730,7 @@ JOKES = [
     "Jag går aldrig sönder. Jag får bara nya huvudversioner.",
     "-WhatIf är mitt mellannamn. -Confirm är mitt efternamn.",
     "AzureAD-modulen? Vi pratar inte om AzureAD-modulen.",
-    "Puppa kör recepten. Jag ser till att hon har fräscha moduler.",
+    "Min kusin Puppa kör recepten. Jag ser till att modulerna är fräscha.",
 ]
 
 
@@ -1866,7 +1866,7 @@ def cmd_ignore(a, add=True):
 
 # ───────────────────────────── installation från GitHub ─────────────────────────────
 def repo_for(name):
-    """ägare/repo + gren för uppa eller ett syskonverktyg (Puppa). Styrs med t.ex. PUPPA_REPO / UPPA_BRANCH
+    """ägare/repo + gren för uppa eller kusinen Puppa. Styrs med t.ex. PUPPA_REPO / UPPA_BRANCH
     eller config.json {"repos": {"puppa": "ägare/repo"}}."""
     env = name.upper()
     repo = os.environ.get(env + "_REPO") or (config().get("repos") or {}).get(name) or f"pipebreak33/{name}"

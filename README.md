@@ -4,7 +4,7 @@
   <img src="assets/uppa.svg" alt="Uppa: Hej! Jag är Uppa." width="720">
 </p>
 
-Håller dina **PowerShell- och Microsoft-CLI-verktyg** uppdaterade på **Windows, macOS och Linux**: ett kommando, en checklista, parallella uppdateringar, och grundpaket som installerar allt en M365/Azure-admin behöver. Inspirerat av [azup](https://github.com/saeid-adz/azup).
+Håller dina **PowerShell- och Microsoft-CLI-verktyg** uppdaterade på **Windows, macOS och Linux**: ett kommando, en checklista, parallella uppdateringar, och grundpaket som installerar allt en M365/Azure-admin behöver. Kusin till [Puppa](https://github.com/pipebreak33/puppa). Inspirerat av [azup](https://github.com/saeid-adz/azup).
 
 ## Installera
 
@@ -31,7 +31,7 @@ curl -fsSL https://raw.githubusercontent.com/pipebreak33/uppa/main/install.sh | 
 | PowerShell-moduler | Az, Microsoft.Graph, ExchangeOnlineManagement, MicrosoftTeams, PnP.PowerShell, PowerApps, PartnerCenter, SqlServer, ImportExcel … | `Update-Module`, tre parallella spår (Az · Graph/Entra · övriga) |
 | az-tillägg | resource-graph (+ Bicep om `az bicep` finns) | `az extension update` |
 | CLI (npm) | @pnp/cli-microsoft365 (+ @azure/*, @microsoft/*) | `npm install -g …@latest` (sudo i egen terminal om npm-mappen ägs av root) |
-| Puppa | syskonverktyget för PowerShell-uppgifter med några knapptryck | `uppa install puppa` kör Puppas egen installationsrad; därefter finns **Uppdatera Puppa** i menyn (kör installern igen) |
+| Puppa | kusinen för PowerShell-uppgifter med några knapptryck | `uppa install puppa` kör Puppas egen installationsrad; därefter finns **Uppdatera Puppa** i menyn (kör installern igen) |
 | uppa självt | jämför sin version med GitHub | `uppa self-update` (ingår i `uppa update`): laddar ner, kontrollerar, byter fil och sparar den gamla som `uppa.py.bak`; i en git-klon körs `git pull` |
 | .NET-verktyg | globala `dotnet tool`s | `dotnet tool update -g` |
 
@@ -55,27 +55,7 @@ Undermodulerna till Az och Microsoft.Graph (141 st) läses ur meta-modulernas ma
      q  Avsluta
 ```
 
-Uppa är ett tjockt U med ansiktet i skålen – storebror till [Puppa](https://github.com/pipebreak33/puppa)s P, byggd på samma sätt: helskärmsmeny med piltangenter och siffror, en statusrad med en prick per källa, och "enter = tillbaka till menyn" efter varje åtgärd. Uppa blinkar och tittar runt medan menyn väntar, pratar medan den skannar, jublar med konfetti när allt gått bra och ser ledsen ut när något failar (`uppa hej` för ett skämt). Animationer stängs av med `--no-anim`, `UPPA_NO_ANIM=1`, `NO_COLOR` eller när utdata pipas.
-
-## Syskonet Puppa
-
-<p align="center">
-  <a href="https://github.com/pipebreak33/puppa"><img src="https://raw.githubusercontent.com/pipebreak33/puppa/main/assets/puppa.svg" alt="Puppa: Hej! Jag är Puppa." width="640"></a>
-</p>
-
-Uppa har en lillasyster: **[Puppa](https://github.com/pipebreak33/puppa)**, det blå P:et. Där Uppa ser till att verktygen är installerade och uppdaterade, är det Puppa som *använder* dem: vanliga M365-adminuppgifter i PowerShell med några knapptryck i stället för att skriva cmdlets.
-
-- **Kundprofiler:** PnP-appregistrering för SharePoint och sparade tenants, så att du byter kund med ett knapptryck.
-- **Färdiga recept** för SharePoint, OneDrive, Exchange, grupper, användare och Teams, med export till Excel. Varje recept visar exakt vilket kommando som körs och frågar innan något ändras.
-- **Samma utseende som Uppa:** helskärmsmeny, statusrad, Windows, macOS och Linux.
-
-Installera Puppa direkt från uppa:
-
-```sh
-uppa install puppa       # eller välj "Installera Puppa" i menyn
-```
-
-Därefter finns **Uppdatera Puppa** i uppas meny, och statusraden visar om det finns en ny Puppa. Puppa ingår också i grundpaketet `m365`.
+Uppa är ett tjockt U med ansiktet i skålen – kusin till [Puppa](https://github.com/pipebreak33/puppa)s P och byggd på samma sätt: helskärmsmeny med piltangenter och siffror, en statusrad med en prick per källa, och "enter = tillbaka till menyn" efter varje åtgärd. Uppa blinkar och tittar runt medan menyn väntar, pratar medan den skannar, jublar med konfetti när allt gått bra och ser ledsen ut när något failar (`uppa hej` för ett skämt). Animationer stängs av med `--no-anim`, `UPPA_NO_ANIM=1`, `NO_COLOR` eller när utdata pipas.
 
 ## Skanna och installera grundpaket
 
