@@ -1,0 +1,99 @@
+# uppa
+
+Håller dina **PowerShell- och Microsoft-CLI-verktyg** uppdaterade på **Windows, macOS och Linux**: ett kommando, en checklista, parallella uppdateringar, och grundpaket som installerar allt en M365/Azure-admin behöver. Inspirerat av [azup](https://github.com/saeid-adz/azup). GUI-appar (Office, Teams, Windows App, VS Code-tillägg) rör uppa inte.
+
+## Installera
+
+**Windows** (PowerShell; installerar Python per användare om det saknas)
+
+```powershell
+irm https://raw.githubusercontent.com/pipebreak33/uppa/main/install.ps1 | iex
+```
+
+**macOS / Linux**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/pipebreak33/uppa/main/install.sh | sh
+```
+
+Öppna en ny terminal och kör `uppa`. Vill du ha allt på en gång: `uppa install bas` (eller `m365` / `azure`). Uppdatera uppa själv med `uppa self-update`. Lås en version med `UPPA_BRANCH=v1.0.0` (PowerShell: `$env:UPPA_BRANCH = 'v1.0.0'`) före installationsraden.
+
+## Vad uppa sköter
+
+| Källa | Vad | Hur |
+|---|---|---|
+| CLI (Homebrew, macOS/Linux) | powershell, azure-cli, dotnet (+ azd, azcopy, sqlcmd … om de installeras) | `brew upgrade --formula` i ett anrop |
+| CLI (winget, Windows) | Microsoft.PowerShell, Microsoft.AzureCLI, Microsoft.DotNet.SDK.*, Microsoft.Azure.* | `winget upgrade --id … --silent` (PowerShell i egen terminal p.g.a. UAC) |
+| PowerShell-moduler | Az, Microsoft.Graph, ExchangeOnlineManagement, MicrosoftTeams, PnP.PowerShell, PowerApps, PartnerCenter, SqlServer, ImportExcel … | `Update-Module`, tre parallella spår (Az · Graph/Entra · övriga) |
+| az-tillägg | resource-graph (+ Bicep om `az bicep` finns) | `az extension update` |
+| CLI (npm) | @pnp/cli-microsoft365 (+ @azure/*, @microsoft/*) | `npm install -g …@latest` (sudo i egen terminal om npm-mappen ägs av root) |
+| Puppa | syskonverktyget för PowerShell-uppgifter med några knapptryck | `uppa install puppa` kör Puppas egen installationsrad |
+| .NET-verktyg | globala `dotnet tool`s | `dotnet tool update -g` |
+
+Undermodulerna till Az och Microsoft.Graph (141 st) läses ur meta-modulernas manifest (`ModuleList` / `RequiredModules`) och följer med när meta-modulen uppdateras. Därför tar en skanning ungefär 7 s i stället för ~2 min.
+
+## Möt Uppa
+
+```text
+    ╭───────╮     ╭──────────────────────────────────────────────╮
+   │  ◕ ‿ ◕  │  ◂ │ Det finns 11 uppdateringar. Ska vi uppa dem? │
+    ╲       ╱     ╰──────────────────────────────────────────────╯
+     ╲_____╱       uppa 1.0.0 · PowerShell & Microsoft-CLI
+      ╎   ╎
+      ▝███▘
+```
+
+Uppa är en liten luftballong (den åker *upp*). Den föreslår nästa steg i menyn, guppar, blinkar och tittar runt medan uppa skannar, drar skämt när det tar tid (`uppa hej` för ett på beställning), jublar med konfetti när allt gått bra och ser ledsen ut när något failar. Animationer stängs av med `--no-anim`, `UPPA_NO_ANIM=1`, `NO_COLOR` eller när utdata pipas.
+
+## Skanna och installera grundpaket
+
+```sh
+uppa scan                 # CLI-verktyg, alla huvudmoduler (+N undermoduler) och hur komplett varje paket är
+uppa scan -a              # även Az-/Graph-undermodulerna
+uppa install              # checklista; b/m/z/l kryssar i bas/m365/azure/alla
+uppa install bas          # installera det som saknas i grundpaketet
+uppa install m365 azure   # flera paket
+uppa install ImportExcel Some.Module   # enskilda moduler (okända namn kontrolleras mot PSGallery först)
+```
+
+| Paket | Innehåll |
+|---|---|
+| **bas** | PowerShell 7, Azure CLI, Microsoft.Graph, ExchangeOnlineManagement, MicrosoftTeams, Az.Accounts, Az.Resources, ImportExcel, SecretManagement + SecretStore, PSScriptAnalyzer |
+| **m365** | bas + Graph Beta, Microsoft.Entra, PnP.PowerShell, Power Platform-modulerna, PartnerCenter, CLI for Microsoft 365, Puppa |
+| **azure** | bas + Az (hela), Az.ResourceGraph, az resource-graph, Bicep, AzCopy, azd |
+| **alla** | hela katalogen |
+
+Egna paket: lägg till i `~/.uppa/config.json`, t.ex. `{"profiles": {"kund": ["Microsoft.Graph", "ExchangeOnlineManagement"]}}`. Moduler installeras med `Install-Module -Scope CurrentUser`.
+
+## Kommandon
+
+```sh
+uppa                      # meny
+uppa status [-a] [källa|namn] [--refresh]
+uppa update [källa|namn] [-n] [-y] [-j N] [--changes]
+uppa select               # checklista: space, a/n, s = hela källan, enter
+uppa changes [namn]       # GitHub-release notes mellan din version och senaste
+uppa doctor               # pwsh startar? az/m365 inloggade? npm-sudo, PATH-dubbletter, gamla modulversioner
+uppa clean pwsh           # ta bort gamla modulversioner som Update-Module lämnar kvar
+uppa ignore pwsh:Az       # hoppa över något (unignore för att ångra)
+uppa nudge enable         # en rad om dagen i nya terminaler när något är inaktuellt
+uppa schedule enable [--daily] [--at 07:30]   # launchd / Task Scheduler / cron; hoppar över sudo/UAC och rapporterar
+uppa self-update          # hämta senaste uppa
+uppa hej                  # ett skämt från Uppa
+```
+
+Påminnelsen läggs i zsh/bash och i PowerShell-profilen (`$PROFILE`), så den syns oavsett vilket skal du öppnar.
+
+`-n` är torrkörning, `-y` hoppar över frågan. Vid `Kör? [J/n/c]` visar `c` release notes först.
+
+## Filer
+
+- `uppa.py` – allt i en fil (bara standardbiblioteket, Python 3.8+)
+- `install.sh` / `install.ps1` – installationsraderna; fungerar även lokalt från en klon
+- `~/.uppa/` – skriptet, cache, state, `config.json` (`ignore`, `profiles`, `repos`, `local`), `logs/`
+
+Lägga till ett verktyg: en `Tool(...)`-rad i `CATALOG` (med winget-id för Windows), eller utöka `MS_FORMULA` / `MS_WINGET` / `MS_NPM`.
+
+## Licens
+
+MIT
