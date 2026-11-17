@@ -35,7 +35,7 @@ from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 HOME = Path.home()
 DIR = HOME / ".uppa"
 CACHE = DIR / "cache.json"
