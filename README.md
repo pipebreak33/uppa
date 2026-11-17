@@ -4,7 +4,7 @@
   <img src="assets/uppa.svg" alt="Uppa: Hej! Jag är Uppa." width="720">
 </p>
 
-Håller dina **PowerShell- och Microsoft-CLI-verktyg** uppdaterade på **Windows, macOS och Linux**: ett kommando, en checklista, parallella uppdateringar, och grundpaket som installerar allt en M365/Azure-admin behöver. Inspirerat av [azup](https://github.com/saeid-adz/azup). GUI-appar (Office, Teams, Windows App, VS Code-tillägg) rör uppa inte.
+Håller dina **PowerShell- och Microsoft-CLI-verktyg** uppdaterade på **Windows, macOS och Linux**: ett kommando, en checklista, parallella uppdateringar, och grundpaket som installerar allt en M365/Azure-admin behöver. Inspirerat av [azup](https://github.com/saeid-adz/azup).
 
 ## Installera
 
@@ -56,6 +56,26 @@ Undermodulerna till Az och Microsoft.Graph (141 st) läses ur meta-modulernas ma
 ```
 
 Uppa är ett tjockt U med ansiktet i skålen – storebror till [Puppa](https://github.com/pipebreak33/puppa)s P, byggd på samma sätt: helskärmsmeny med piltangenter och siffror, en statusrad med en prick per källa, och "enter = tillbaka till menyn" efter varje åtgärd. Uppa blinkar och tittar runt medan menyn väntar, pratar medan den skannar, jublar med konfetti när allt gått bra och ser ledsen ut när något failar (`uppa hej` för ett skämt). Animationer stängs av med `--no-anim`, `UPPA_NO_ANIM=1`, `NO_COLOR` eller när utdata pipas.
+
+## Syskonet Puppa
+
+<p align="center">
+  <a href="https://github.com/pipebreak33/puppa"><img src="https://raw.githubusercontent.com/pipebreak33/puppa/main/assets/puppa.svg" alt="Puppa: Hej! Jag är Puppa." width="640"></a>
+</p>
+
+Uppa har en lillasyster: **[Puppa](https://github.com/pipebreak33/puppa)**, det blå P:et. Där Uppa ser till att verktygen är installerade och uppdaterade, är det Puppa som *använder* dem: vanliga M365-adminuppgifter i PowerShell med några knapptryck i stället för att skriva cmdlets.
+
+- **Kundprofiler:** PnP-appregistrering för SharePoint och sparade tenants, så att du byter kund med ett knapptryck.
+- **Färdiga recept** för SharePoint, OneDrive, Exchange, grupper, användare och Teams, med export till Excel. Varje recept visar exakt vilket kommando som körs och frågar innan något ändras.
+- **Samma utseende som Uppa:** helskärmsmeny, statusrad, Windows, macOS och Linux.
+
+Installera Puppa direkt från uppa:
+
+```sh
+uppa install puppa       # eller välj "Installera Puppa" i menyn
+```
+
+Därefter finns **Uppdatera Puppa** i uppas meny, och statusraden visar om det finns en ny Puppa. Puppa ingår också i grundpaketet `m365`.
 
 ## Skanna och installera grundpaket
 

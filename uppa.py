@@ -2,7 +2,7 @@
 """uppa – håller dina PowerShell- och Microsoft-CLI-verktyg uppdaterade, och bara dem.
 Täcker det du faktiskt har installerat: PowerShell 7 och dess moduler (Az, Graph, EXO, Teams, PnP …),
 Azure CLI + az-tillägg/Bicep, .NET + globala dotnet-verktyg, och Microsofts CLI:er i npm -g (CLI for Microsoft 365).
-GUI-appar (Office, Teams, Windows App …) rör uppa inte.
+Syskonet Puppa (github.com/pipebreak33/puppa) installeras och uppdateras också via uppa.
 
   uppa                     meny
   uppa status [källa|namn] vad är inaktuellt (-a visar allt)
