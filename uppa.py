@@ -35,7 +35,7 @@ from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 HOME = Path.home()
 DIR = HOME / ".uppa"
 CACHE = DIR / "cache.json"
@@ -54,7 +54,7 @@ if IS_WIN:
     EXTRA_PATH = [os.path.join(_LA, "Microsoft", "WindowsApps"), os.path.join(_AD, "npm"),
                   os.path.join(_PF, "PowerShell", "7"), os.path.join(_PF, "Microsoft SDKs", "Azure", "CLI2", "wbin"),
                   os.path.join(_PF86, "Microsoft SDKs", "Azure", "CLI2", "wbin"), os.path.join(_PF, "dotnet"),
-                  str(HOME / ".dotnet" / "tools"), str(DIR / "bin")]
+                  str(HOME / ".dotnet" / "tools"), str(DIR / "bin"), str(HOME / ".puppa" / "bin")]
 else:
     EXTRA_PATH = ["/opt/homebrew/bin", "/opt/homebrew/sbin", "/home/linuxbrew/.linuxbrew/bin", "/usr/local/bin",
                   str(HOME / ".local/bin"), str(HOME / ".dotnet/tools"), "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
@@ -2600,6 +2600,51 @@ def status_lines(cache):
     return lines
 
 
+def file_version(path):
+    try:
+        m = re.search(r'^VERSION = "([^"]+)"', Path(path).read_text(encoding="utf-8"), re.M)
+        return m.group(1) if m else None
+    except Exception:
+        return None
+
+
+def menu_update_self(a):
+    """Uppdatera uppa och starta om i den nya versionen, så menyn direkt kör den nya koden."""
+    me = os.path.realpath(__file__)
+    a.yes = False
+    cmd_self_update(a)
+    new = file_version(me)
+    if new and new != VERSION:
+        print()
+        say(f"Startar om som uppa {new}…", "proud")
+        if sys.stdin.isatty():
+            pause()
+        os.execv(sys.executable, [sys.executable, me])
+
+
+def menu_update_puppa(a, item=None):
+    """Puppa uppdateras genom att dess installer körs igen (samma rad som vid installation)."""
+    cur = item.current if item else None
+    lat = item.latest if item else None
+    if item and not item.outdated:
+        say(f"Puppa {cur} är redan senaste versionen. Vill du ändå installera om den?", "happy")
+        if not ask("Installera om Puppa?", False):
+            say("Okej, inget ändrat.", "happy")
+            return
+    task = Task("Puppa" + (f" {cur} → {lat}" if item and item.outdated else ""), sibling_installer("puppa"),
+                "puppa", items=[item or Item("puppa", "puppa", cur or "?", lat or "?", label="Puppa")])
+    print_plan([task])
+    if not ask("Uppdatera Puppa?", True):
+        say("Okej, inget ändrat.", "happy")
+        return
+    logpath = run_plan([task], 1)
+    summarize([task], logpath)
+    try:
+        scan(["puppa"], quiet=True)
+    except Exception:
+        pass
+
+
 def greeting(cache):
     """Uppa presenterar sig och föreslår nästa steg, som Puppa gör."""
     items = items_from(cache)
@@ -2640,6 +2685,12 @@ def menu(a):
         n = len(outd)
         m = len([i for i in outd if i.current and i.latest != "?" and major_bump(i.current, i.latest)])
         msg, mood = greeting(cache)
+        me = next((i for i in items if i.source == "self"), None)
+        pu = next((i for i in items if i.source == "puppa"), None)
+        self_new = me.latest if me and newer(me.latest, VERSION) else None    # jämför med koden som körs nu
+        self_hint = f"{VERSION} → {self_new} finns" if self_new else f"{VERSION} · senaste version"
+        puppa_hint = (f"{pu.current} → {pu.latest} finns" if pu and pu.outdated
+                      else (f"{pu.current} · senaste version" if pu else "kör Puppas installer igen"))
         rows = [dict(label="Uppdatera allt", hint=f"{n} st" + (f" · {m} nya huvudversioner" if m else ""),
                      value="update"),
                 dict(label="Välj själv…", hint="kryssa i det som ska uppdateras", value="select"),
@@ -2648,14 +2699,15 @@ def menu(a):
                 dict(label="Skanna installerat", hint="moduler, verktyg och grundpaket", value="scan"),
                 dict(label="Installera grundpaket…", hint="bas · m365 · azure", value="install"),
                 dict(label="Installera Puppa", hint="PowerShell-uppgifter med några knapptryck", value="puppa"),
+                dict(label="Uppdatera Puppa", hint=puppa_hint, value="puppa-update"),
+                dict(label="Uppdatera uppa", hint=self_hint, value="self"),
                 dict(label="Doctor", hint="inloggningar och hälsokoll", value="doctor"),
                 dict(label="Logga ut från allt", hint="Graph · Az · PnP · az · m365", value="logout", key="u"),
                 dict(label="Skanna om", hint="hämta färska versioner", value="refresh", key="r"),
                 dict(label="Avsluta", value="quit", key="q")]
         if not n:
             rows = [r for r in rows if r["value"] not in ("update", "select", "status", "changes")]
-        if have("puppa"):
-            rows = [r for r in rows if r["value"] != "puppa"]
+        rows = [r for r in rows if r["value"] != ("puppa" if have("puppa") else "puppa-update")]
         v = choose(rows, msg=msg, mood=mood, status=lambda: status_lines(cache), start=last,
                    footer="↑/↓ · enter · siffra väljer · q avslutar" if width() >= 50 else None,
                    sub=f"uppa {VERSION}", screen=True)
@@ -2687,6 +2739,12 @@ def menu(a):
         elif v == "puppa":
             a.names = ["puppa"]
             cmd_install(a)
+            if have("puppa"):
+                say("Puppa är installerad. Starta den med puppa – och uppdatera den härifrån framöver.", "proud")
+        elif v == "puppa-update":
+            menu_update_puppa(a, pu)
+        elif v == "self":
+            menu_update_self(a)
         elif v == "doctor":
             cmd_doctor(a)
         elif v == "logout":

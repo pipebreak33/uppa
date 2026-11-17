@@ -1,5 +1,9 @@
 # uppa
 
+<p align="center">
+  <img src="assets/uppa.svg" alt="Uppa: Hej! Jag är Uppa." width="720">
+</p>
+
 Håller dina **PowerShell- och Microsoft-CLI-verktyg** uppdaterade på **Windows, macOS och Linux**: ett kommando, en checklista, parallella uppdateringar, och grundpaket som installerar allt en M365/Azure-admin behöver. Inspirerat av [azup](https://github.com/saeid-adz/azup). GUI-appar (Office, Teams, Windows App, VS Code-tillägg) rör uppa inte.
 
 ## Installera
@@ -27,7 +31,7 @@ curl -fsSL https://raw.githubusercontent.com/pipebreak33/uppa/main/install.sh | 
 | PowerShell-moduler | Az, Microsoft.Graph, ExchangeOnlineManagement, MicrosoftTeams, PnP.PowerShell, PowerApps, PartnerCenter, SqlServer, ImportExcel … | `Update-Module`, tre parallella spår (Az · Graph/Entra · övriga) |
 | az-tillägg | resource-graph (+ Bicep om `az bicep` finns) | `az extension update` |
 | CLI (npm) | @pnp/cli-microsoft365 (+ @azure/*, @microsoft/*) | `npm install -g …@latest` (sudo i egen terminal om npm-mappen ägs av root) |
-| Puppa | syskonverktyget för PowerShell-uppgifter med några knapptryck | `uppa install puppa` kör Puppas egen installationsrad; syns alltid i statusvyn |
+| Puppa | syskonverktyget för PowerShell-uppgifter med några knapptryck | `uppa install puppa` kör Puppas egen installationsrad; därefter finns **Uppdatera Puppa** i menyn (kör installern igen) |
 | uppa självt | jämför sin version med GitHub | `uppa self-update` (ingår i `uppa update`): laddar ner, kontrollerar, byter fil och sparar den gamla som `uppa.py.bak`; i en git-klon körs `git pull` |
 | .NET-verktyg | globala `dotnet tool`s | `dotnet tool update -g` |
 
@@ -86,7 +90,7 @@ uppa clean pwsh           # ta bort gamla modulversioner som Update-Module lämn
 uppa ignore pwsh:Az       # hoppa över något (unignore för att ångra)
 uppa nudge enable         # en rad om dagen i nya terminaler när något är inaktuellt
 uppa schedule enable [--daily] [--at 07:30]   # launchd / Task Scheduler / cron; hoppar över sudo/UAC och rapporterar
-uppa self-update          # hämta senaste uppa
+uppa self-update          # hämta senaste uppa  (i menyn: Uppdatera uppa – startar om i nya versionen)
 uppa logout [-n]          # logga ut överallt: rensar sparade inloggningar för az, azd, m365, Az, Graph/Entra, PnP
 uppa logout --ps | iex    # i ett öppet pwsh-fönster: kopplar även ner EXO, Teams, PnP, Graph, Az, Partner Center, Power Apps
 uppa hej                  # ett skämt från Uppa
