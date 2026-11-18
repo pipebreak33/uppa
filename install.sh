@@ -4,6 +4,7 @@
 # Från en lokal kopia:  ./install.sh
 # Styr källan med UPPA_REPO=ägare/repo och UPPA_BRANCH=gren (eller en release-tagg).
 set -eu
+START="$(date +%s)"
 
 REPO="${UPPA_REPO:-pipebreak33/uppa}"
 BRANCH="${UPPA_BRANCH:-main}"
@@ -65,4 +66,6 @@ case ":$PATH:" in
 esac
 
 VER="$("$PY" "$DIR/uppa.py" --version 2>/dev/null || echo uppa)"
-printf '\n  \033[38;5;42m✔\033[0m %s installerad. Kör: \033[1muppa\033[0m   (grundpaketet: uppa install bas)\n\n' "$VER"
+SECS=$(( $(date +%s) - START )); if [ "$SECS" -ge 60 ]; then TOOK="$((SECS / 60)) min $((SECS % 60)) s"; else TOOK="$SECS s"; fi
+printf '\n  \033[38;5;42m✔\033[0m %s installerad på %s. Kör: \033[1muppa\033[0m   (grundpaketet: uppa install bas)\n' "$VER" "$TOOK"
+printf '  \033[2mAvinstallera: curl -fsSL https://raw.githubusercontent.com/pipebreak33/uppa/main/uninstall.sh | sh\033[0m\n\n'

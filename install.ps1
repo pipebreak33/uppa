@@ -9,6 +9,7 @@
    2. direkt från python.org (per användare, inga adminrättigheter).
 #>
 $ErrorActionPreference = 'Stop'
+$Clock = [Diagnostics.Stopwatch]::StartNew()
 $ProgressPreference = 'SilentlyContinue'
 if ($PSVersionTable.PSEdition -ne 'Core') {
     [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
@@ -133,7 +134,9 @@ if ($OnWindows) {
 }
 
 $ver = & $py[0] @(@($py | Select-Object -Skip 1) + @($target, '--version')) 2>$null
-Write-Host "`n  ✔ $ver installerad. Öppna en ny terminal och kör: uppa   (grundpaketet: uppa install bas)`n" -ForegroundColor Green
+$Clock.Stop(); $took = if ($Clock.Elapsed.TotalSeconds -ge 60) { '{0} min {1} s' -f [int][math]::Floor($Clock.Elapsed.TotalMinutes), $Clock.Elapsed.Seconds } else { '{0} s' -f [int]$Clock.Elapsed.TotalSeconds }
+Write-Host "`n  ✔ $ver installerad på $took. Öppna en ny terminal och kör: uppa   (grundpaketet: uppa install bas)" -ForegroundColor Green
+Write-Host "  Avinstallera: irm https://raw.githubusercontent.com/pipebreak33/uppa/main/uninstall.ps1 | iex`n" -ForegroundColor DarkGray
 if ($OnWindows -and -not (Get-Command winget -ErrorAction SilentlyContinue)) {
     Warn 'winget hittades inte. uppa behöver det för CLI-verktygen: uppdatera "App Installer" i Microsoft Store (https://aka.ms/getwinget).'
 }

@@ -22,6 +22,24 @@ curl -fsSL https://raw.githubusercontent.com/pipebreak33/uppa/main/install.sh | 
 
 Öppna en ny terminal och kör `uppa`. Vill du ha allt på en gång: `uppa install bas` (eller `m365` / `azure`). Uppdatera Uppa själv med `uppa self-update`. Lås en version med `UPPA_BRANCH=v1.0.0` (PowerShell: `$env:UPPA_BRANCH = 'v1.0.0'`) före installationsraden.
 
+
+## Avinstallera
+
+**Windows** (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/pipebreak33/uppa/main/uninstall.ps1 | iex
+```
+
+**macOS / Linux:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pipebreak33/uppa/main/uninstall.sh | sh
+```
+
+Tar bort programmet och kommandot `uppa` (och PATH-posten på Windows). Det behåller Uppas cache och logg i `~/.uppa`.
+`UPPA_PURGE=1` tar bort även dina data, och `UPPA_YES=1` hoppar över frågan.
+
 ## Vad Uppa sköter
 
 | Källa | Vad | Hur |
