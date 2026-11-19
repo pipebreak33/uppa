@@ -4,6 +4,12 @@
 # Från en lokal kopia:  ./install.sh
 # Styr källan med UPPA_REPO=ägare/repo och UPPA_BRANCH=gren (eller en release-tagg).
 set -eu
+# Language: TRUPPA_LANG, else ~/.truppa/config.json (shared by the whole troupe), else English
+TL="${TRUPPA_LANG:-}"
+if [ -z "$TL" ] && [ -f "$HOME/.truppa/config.json" ]; then
+  TL="$(sed -n 's/.*"lang"[^"]*"\([a-z]*\)".*/\1/p' "$HOME/.truppa/config.json" 2>/dev/null | head -n 1)"
+fi
+t() { case "$TL" in sv*) printf '%s' "$2" ;; *) printf '%s' "$1" ;; esac; }
 START="$(date +%s)"
 
 REPO="${UPPA_REPO:-pipebreak33/uppa}"
@@ -23,8 +29,8 @@ for c in python3 python; do
 done
 if [ -z "$PY" ]; then
   case "$(uname -s)" in
-    Darwin) die "Python 3.8+ saknas. Kör: xcode-select --install   (eller: brew install python)";;
-    *)      die "Python 3.8+ saknas. Kör: sudo apt install python3   (eller dnf/pacman motsvarande)";;
+    Darwin) die "$(t "Python 3.8+ is missing. Run: xcode-select --install   (or: brew install python)" "Python 3.8+ saknas. Kör: xcode-select --install   (eller: brew install python)")";;
+    *)      die "$(t "Python 3.8+ is missing. Run: sudo apt install python3   (or the dnf/pacman equivalent)" "Python 3.8+ saknas. Kör: sudo apt install python3   (eller dnf/pacman motsvarande)")";;
   esac
 fi
 
@@ -32,14 +38,14 @@ fi
 mkdir -p "$DIR" "$BIN"
 HERE="$(cd "$(dirname "$0")" 2>/dev/null && pwd || true)"
 if [ -n "$HERE" ] && [ -f "$HERE/uppa.py" ] && [ "${UPPA_FROM_WEB:-}" != "1" ]; then
-  say "Installerar från $HERE"
+  say "$(t "Installing from $HERE" "Installerar från $HERE")"
   cp "$HERE/uppa.py" "$DIR/uppa.py"
 else
-  say "Hämtar uppa från github.com/$REPO ($BRANCH)"
+  say "$(t "Fetching uppa from github.com/$REPO ($BRANCH)" "Hämtar uppa från github.com/$REPO ($BRANCH)")"
   curl -fsSL "https://raw.githubusercontent.com/$REPO/$BRANCH/uppa.py" -o "$DIR/uppa.py.new" \
-    || die "nedladdningen misslyckades – kolla nätet eller UPPA_REPO/UPPA_BRANCH"
+    || die "$(t "the download failed: check the network or UPPA_REPO/UPPA_BRANCH" "nedladdningen misslyckades – kolla nätet eller UPPA_REPO/UPPA_BRANCH")"
   "$PY" -c 'import ast,sys; ast.parse(open(sys.argv[1],encoding="utf-8").read())' "$DIR/uppa.py.new" \
-    || die "det nedladdade skriptet är trasigt"
+    || die "$(t "the downloaded script is broken" "det nedladdade skriptet är trasigt")"
   mv "$DIR/uppa.py.new" "$DIR/uppa.py"
 fi
 
@@ -61,11 +67,11 @@ case ":$PATH:" in
       *)      RC="$HOME/.profile" ;;
     esac
     grep -qs '.local/bin' "$RC" 2>/dev/null || printf '\nexport PATH="$HOME/.local/bin:$PATH"\n' >> "$RC"
-    say "La till ~/.local/bin i PATH ($RC). Öppna en ny terminal."
+    say "$(t "Added ~/.local/bin to PATH ($RC). Open a new terminal." "La till ~/.local/bin i PATH ($RC). Öppna en ny terminal.")"
     ;;
 esac
 
 VER="$("$PY" "$DIR/uppa.py" --version 2>/dev/null || echo uppa)"
 SECS=$(( $(date +%s) - START )); if [ "$SECS" -ge 60 ]; then TOOK="$((SECS / 60)) min $((SECS % 60)) s"; else TOOK="$SECS s"; fi
-printf '\n  \033[38;5;42m✔\033[0m %s installerad på %s. Kör: \033[1muppa\033[0m   (grundpaketet: uppa install bas)\n' "$VER" "$TOOK"
-printf '  \033[2mAvinstallera: curl -fsSL https://raw.githubusercontent.com/pipebreak33/uppa/main/uninstall.sh | sh\033[0m\n\n'
+printf "$(t '\n  \033[38;5;42m✔\033[0m %s installed in %s. Run: \033[1muppa\033[0m   (the base package: uppa install bas)\n' '\n  \033[38;5;42m✔\033[0m %s installerad på %s. Kör: \033[1muppa\033[0m   (grundpaketet: uppa install bas)\n')" "$VER" "$TOOK"
+printf "$(t '  \033[2mUninstall: curl -fsSL https://raw.githubusercontent.com/pipebreak33/uppa/main/uninstall.sh | sh\033[0m\n\n' '  \033[2mAvinstallera: curl -fsSL https://raw.githubusercontent.com/pipebreak33/uppa/main/uninstall.sh | sh\033[0m\n\n')"

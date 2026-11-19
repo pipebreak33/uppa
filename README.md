@@ -1,14 +1,16 @@
 # Uppa
 
+**English** · [Svenska](README.sv.md)
+
 <p align="center">
-  <img src="assets/uppa.svg" alt="Uppa: Hej! Jag är Uppa." width="720">
+  <img src="assets/uppa.svg" alt="Uppa: Hi! I'm Uppa." width="720">
 </p>
 
-Håller dina **PowerShell- och Microsoft-CLI-verktyg** uppdaterade på **Windows, macOS och Linux**: ett kommando, en checklista, parallella uppdateringar, och grundpaket som installerar allt en M365/Azure-admin behöver. Kusin till [Puppa](https://github.com/pipebreak33/puppa). Inspirerat av [azup](https://github.com/saeid-adz/azup).
+Keeps your **PowerShell and Microsoft CLI tools** up to date on **Windows, macOS and Linux**: one command, one checklist, parallel updates, and bundles that install everything a Microsoft 365/Azure admin needs. One of the tools in the troupe with [Puppa](https://github.com/pipebreak33/puppa), [Muppa](https://github.com/pipebreak33/muppa), [Euppa](https://github.com/pipebreak33/euppa), [Ruppa](https://github.com/pipebreak33/ruppa) and [Wuppa](https://github.com/pipebreak33/wuppa). Inspired by [azup](https://github.com/saeid-adz/azup).
 
-## Installera
+## Install
 
-**Windows** (PowerShell; installerar Python per användare om det saknas)
+**Windows** (PowerShell; installs Python per user if it is missing)
 
 ```powershell
 irm https://raw.githubusercontent.com/pipebreak33/uppa/main/install.ps1 | iex
@@ -20,10 +22,9 @@ irm https://raw.githubusercontent.com/pipebreak33/uppa/main/install.ps1 | iex
 curl -fsSL https://raw.githubusercontent.com/pipebreak33/uppa/main/install.sh | sh
 ```
 
-Öppna en ny terminal och kör `uppa`. Vill du ha allt på en gång: `uppa install bas` (eller `m365` / `azure`). Uppdatera Uppa själv med `uppa self-update`. Lås en version med `UPPA_BRANCH=v1.0.0` (PowerShell: `$env:UPPA_BRANCH = 'v1.0.0'`) före installationsraden.
+Open a new terminal and run `uppa`. Want everything at once: `uppa install bas` (or `m365` / `azure`). Update Uppa itself with `uppa self-update`. Pin a version with `UPPA_BRANCH=v1.0.0` (PowerShell: `$env:UPPA_BRANCH = 'v1.0.0'`) before the install line.
 
-
-## Avinstallera
+## Uninstall
 
 **Windows** (PowerShell):
 
@@ -37,95 +38,108 @@ irm https://raw.githubusercontent.com/pipebreak33/uppa/main/uninstall.ps1 | iex
 curl -fsSL https://raw.githubusercontent.com/pipebreak33/uppa/main/uninstall.sh | sh
 ```
 
-Tar bort programmet och kommandot `uppa` (och PATH-posten på Windows). Det behåller Uppas cache och logg i `~/.uppa`.
-`UPPA_PURGE=1` tar bort även dina data, och `UPPA_YES=1` hoppar över frågan.
+Removes the program and the `uppa` command (and the PATH entry on Windows). Uppa's cache and log in `~/.uppa` are kept.
+`UPPA_PURGE=1` removes your data too, and `UPPA_YES=1` skips the question.
 
-## Vad Uppa sköter
+## Language
 
-| Källa | Vad | Hur |
+Uppa speaks **English** by default and **Swedish** on request. The choice is shared by the whole troupe:
+
+```sh
+uppa lang sv      # Swedish for every tool
+uppa lang en      # back to English
+```
+
+The menu has a **Language** row too. `TRUPPA_LANG=sv` sets it for a single run. The setting lives in `~/.truppa/config.json`. Swedish command names (`uppa hej` …) still work.
+
+## What Uppa looks after
+
+| Source | What | How |
 |---|---|---|
-| CLI (Homebrew, macOS/Linux) | powershell, azure-cli, dotnet (+ azd, azcopy, sqlcmd … om de installeras) | `brew upgrade --formula` i ett anrop |
-| CLI (winget, Windows) | Microsoft.PowerShell, Microsoft.AzureCLI, Microsoft.DotNet.SDK.*, Microsoft.Azure.* | `winget upgrade --id … --silent` (PowerShell i egen terminal p.g.a. UAC) |
-| PowerShell-moduler | Az, Microsoft.Graph, ExchangeOnlineManagement, MicrosoftTeams, PnP.PowerShell, PowerApps, PartnerCenter, SqlServer, ImportExcel … | `Update-Module`, tre parallella spår (Az · Graph/Entra · övriga) |
-| az-tillägg | resource-graph (+ Bicep om `az bicep` finns) | `az extension update` |
-| CLI (npm) | @pnp/cli-microsoft365 (+ @azure/*, @microsoft/*) | `npm install -g …@latest` (sudo i egen terminal om npm-mappen ägs av root) |
-| Puppa | kusinen för PowerShell-uppgifter med några knapptryck | `uppa install puppa` kör Puppas egen installationsrad; därefter finns **Uppdatera Puppa** i menyn (kör installern igen) |
-| Uppa självt | jämför sin version med GitHub | `uppa self-update` (ingår i `uppa update`): laddar ner, kontrollerar, byter fil och sparar den gamla som `uppa.py.bak`; i en git-klon körs `git pull` |
-| .NET-verktyg | globala `dotnet tool`s | `dotnet tool update -g` |
+| CLI (Homebrew, macOS/Linux) | powershell, azure-cli, dotnet (+ azd, azcopy, sqlcmd … if installed) | `brew upgrade --formula` in one call |
+| CLI (winget, Windows) | Microsoft.PowerShell, Microsoft.AzureCLI, Microsoft.DotNet.SDK.*, Microsoft.Azure.* | `winget upgrade --id … --silent` (PowerShell in its own terminal because of UAC) |
+| PowerShell modules | Az, Microsoft.Graph, ExchangeOnlineManagement, MicrosoftTeams, PnP.PowerShell, PowerApps, PartnerCenter, SqlServer, ImportExcel … | `Update-Module`, three parallel lanes (Az · Graph/Entra · the rest) |
+| az extensions | resource-graph (+ Bicep if `az bicep` exists) | `az extension update` |
+| CLI (npm) | @pnp/cli-microsoft365 (+ @azure/*, @microsoft/*) | `npm install -g …@latest` (sudo in its own terminal if the npm folder is owned by root) |
+| Puppa | the tool for PowerShell tasks in a few keystrokes | `uppa install puppa` runs Puppa's own install line; after that the menu has **Update Puppa** (runs the installer again) |
+| Uppa itself | compares its version with GitHub | `uppa self-update` (part of `uppa update`): downloads, checks, swaps the file and keeps the old one as `uppa.py.bak`; in a git clone it runs `git pull` |
+| .NET tools | global `dotnet tool`s | `dotnet tool update -g` |
 
-Undermodulerna till Az och Microsoft.Graph (141 st) läses ur meta-modulernas manifest (`ModuleList` / `RequiredModules`) och följer med när meta-modulen uppdateras. Därför tar en skanning ungefär 7 s i stället för ~2 min.
+The submodules of Az and Microsoft.Graph (141 of them) are read from the meta modules' manifests (`ModuleList` / `RequiredModules`) and come along when the meta module is updated. That is why a scan takes about 7 s instead of ~2 min.
 
-## Möt Uppa
+## Meet Uppa
 
 ```text
-  ██     ██    ╭──────────────────────────────────────────────╮
-  ██ ◕ ◕ ██  ◂ │ Hej! 11 saker kan uppdateras. Ska vi uppa dem? │
-  ██  ‿  ██    ╰──────────────────────────────────────────────╯
-  ██▄   ▄██     uppa 1.1.0
+  ██     ██    ╭────────────────────────────────────────────────╮
+  ██ ◕ ◕ ██  ◂ │ Hi! 11 things can be updated. Shall we uppa them? │
+  ██  ‿  ██    ╰────────────────────────────────────────────────╯
+  ██▄   ▄██     uppa 1.2.0
    ▀█████▀
-  Senast kollat 13 min sedan
-  ● Uppa  ● brew 2  ● PowerShell 8  ● az-tillägg  ● npm 1  ● .NET  ● Puppa
+  Last checked 13 min ago
+  ● Uppa  ● brew 2  ● PowerShell 8  ● az extensions  ● npm 1  ● .NET  ● Puppa
 
-   ❯ 1  Uppdatera allt          11 st · 4 nya huvudversioner
-     2  Välj själv…             kryssa i det som ska uppdateras
+   ❯ 1  Update all              11 · 4 new major versions
+     2  Pick yourself…          tick what to update
      …
-     u  Logga ut från allt      Graph · Az · PnP · az · m365
-     q  Avsluta
+     u  Sign out of everything  Graph · Az · PnP · az · m365
+     s  Language: English
+     q  Quit
 ```
 
-Uppa är ett tjockt U med ansiktet i skålen – kusin till [Puppa](https://github.com/pipebreak33/puppa)s P och byggd på samma sätt: helskärmsmeny med piltangenter och siffror, en statusrad med en prick per källa, och "enter = tillbaka till menyn" efter varje åtgärd. Uppa blinkar och tittar runt medan menyn väntar, pratar medan den skannar, jublar med konfetti när allt gått bra och ser ledsen ut när något failar (`uppa hej` för ett skämt). Animationer stängs av med `--no-anim`, `UPPA_NO_ANIM=1`, `NO_COLOR` eller när utdata pipas.
+Uppa is a fat U with its face in the bowl, built the same way as the rest of the troupe: a full-screen menu with arrow keys and digits, a status line with one dot per source, and "enter = back to the menu" after every action. Uppa blinks and looks around while the menu waits, talks while it scans, cheers with confetti when everything went well and looks sad when something fails (`uppa hello` for a joke). Animations are turned off with `--no-anim`, `UPPA_NO_ANIM=1`, `NO_COLOR` or when the output is piped.
 
-## Skanna och installera grundpaket
+## Scan and install bundles
 
 ```sh
-uppa scan                 # CLI-verktyg, alla huvudmoduler (+N undermoduler) och hur komplett varje paket är
-uppa scan -a              # även Az-/Graph-undermodulerna
-uppa install              # checklista; b/m/z/l kryssar i bas/m365/azure/alla
-uppa install bas          # installera det som saknas i grundpaketet
-uppa install m365 azure   # flera paket
-uppa install ImportExcel Some.Module   # enskilda moduler (okända namn kontrolleras mot PSGallery först)
+uppa scan                 # CLI tools, all main modules (+N submodules) and how complete each bundle is
+uppa scan -a              # the Az/Graph submodules too
+uppa install              # checklist; b/m/z/l tick bas/m365/azure/alla
+uppa install bas          # install what is missing from the base bundle
+uppa install m365 azure   # several bundles
+uppa install ImportExcel Some.Module   # single modules (unknown names are checked against PSGallery first)
 ```
 
-| Paket | Innehåll |
+| Bundle | Contents |
 |---|---|
 | **bas** | PowerShell 7, Azure CLI, Microsoft.Graph, ExchangeOnlineManagement, MicrosoftTeams, Az.Accounts, Az.Resources, ImportExcel, SecretManagement + SecretStore, PSScriptAnalyzer |
-| **m365** | bas + Graph Beta, Microsoft.Entra, PnP.PowerShell, Power Platform-modulerna, PartnerCenter, CLI for Microsoft 365, Puppa |
-| **azure** | bas + Az (hela), Az.ResourceGraph, az resource-graph, Bicep, AzCopy, azd |
-| **alla** | hela katalogen |
+| **m365** | bas + Graph Beta, Microsoft.Entra, PnP.PowerShell, the Power Platform modules, PartnerCenter, CLI for Microsoft 365, Puppa |
+| **azure** | bas + Az (all of it), Az.ResourceGraph, az resource-graph, Bicep, AzCopy, azd |
+| **alla** | the whole catalogue |
 
-Egna paket: lägg till i `~/.uppa/config.json`, t.ex. `{"profiles": {"kund": ["Microsoft.Graph", "ExchangeOnlineManagement"]}}`. Moduler installeras med `Install-Module -Scope CurrentUser`.
+Your own bundles: add them to `~/.uppa/config.json`, e.g. `{"profiles": {"customer": ["Microsoft.Graph", "ExchangeOnlineManagement"]}}`. Modules are installed with `Install-Module -Scope CurrentUser`.
 
-## Kommandon
+## Commands
 
 ```sh
-uppa                      # meny
-uppa status [-a] [källa|namn] [--refresh]
-uppa update [källa|namn] [-n] [-y] [-j N] [--changes]
-uppa select               # checklista: space, a/n, s = hela källan, enter
-uppa changes [namn]       # GitHub-release notes mellan din version och senaste
-uppa doctor               # pwsh startar? az/m365 inloggade? npm-sudo, PATH-dubbletter, gamla modulversioner
-uppa clean pwsh           # ta bort gamla modulversioner som Update-Module lämnar kvar
-uppa ignore pwsh:Az       # hoppa över något (unignore för att ångra)
-uppa nudge enable         # en rad om dagen i nya terminaler när något är inaktuellt
-uppa schedule enable [--daily] [--at 07:30]   # launchd / Task Scheduler / cron; hoppar över sudo/UAC och rapporterar
-uppa self-update          # hämta senaste Uppa  (i menyn: Uppdatera Uppa – startar om i nya versionen)
-uppa logout [-n]          # logga ut överallt: rensar sparade inloggningar för az, azd, m365, Az, Graph/Entra, PnP
-uppa logout --ps | iex    # i ett öppet pwsh-fönster: kopplar även ner EXO, Teams, PnP, Graph, Az, Partner Center, Power Apps
-uppa hej                  # ett skämt från Uppa
+uppa                      # menu
+uppa status [-a] [source|name] [--refresh]
+uppa update [source|name] [-n] [-y] [-j N] [--changes]
+uppa select               # checklist: space, a/n, s = the whole source, enter
+uppa changes [name]       # GitHub release notes between your version and the latest
+uppa doctor               # does pwsh start? az/m365 signed in? npm sudo, PATH duplicates, old module versions
+uppa clean pwsh           # remove old module versions that Update-Module leaves behind
+uppa ignore pwsh:Az       # skip something (unignore to undo)
+uppa nudge enable         # one line a day in new terminals when something is outdated
+uppa schedule enable [--daily] [--at 07:30]   # launchd / Task Scheduler / cron; skips sudo/UAC and reports
+uppa self-update          # fetch the latest Uppa  (in the menu: Update Uppa, restarts in the new version)
+uppa logout [-n]          # sign out everywhere: clears saved sign-ins for az, azd, m365, Az, Graph/Entra, PnP
+uppa logout --ps | iex    # in an open pwsh window: also disconnects EXO, Teams, PnP, Graph, Az, Partner Center, Power Apps
+uppa lang [en|sv]         # language for the whole troupe
+uppa hello                # a joke from Uppa
 ```
 
-Påminnelsen läggs i zsh/bash och i PowerShell-profilen (`$PROFILE`), så den syns oavsett vilket skal du öppnar.
+The nudge is added to zsh/bash and to the PowerShell profile (`$PROFILE`), so it shows whichever shell you open.
 
-`-n` är torrkörning, `-y` hoppar över frågan. Vid `Kör? [J/n/c]` visar `c` release notes först.
+`-n` is a dry run, `-y` skips the question. At `Run? [Y/n/c]`, `c` shows the release notes first.
 
-## Filer
+## Files
 
-- `uppa.py` – allt i en fil (bara standardbiblioteket, Python 3.8+)
-- `install.sh` / `install.ps1` – installationsraderna; fungerar även lokalt från en klon
-- `~/.uppa/` – skriptet, cache, state, `config.json` (`ignore`, `profiles`, `repos`, `local`), `logs/`
+- `uppa.py` – everything in one file (standard library only, Python 3.8+)
+- `install.sh` / `install.ps1` – the install lines; they also work locally from a clone
+- `~/.uppa/` – the script, cache, state, `config.json` (`ignore`, `profiles`, `repos`, `local`), `logs/`
 
-Lägga till ett verktyg: en `Tool(...)`-rad i `CATALOG` (med winget-id för Windows), eller utöka `MS_FORMULA` / `MS_WINGET` / `MS_NPM`.
+Adding a tool: a `Tool(...)` line in `CATALOG` (with a winget id for Windows), or extend `MS_FORMULA` / `MS_WINGET` / `MS_NPM`.
 
-## Licens
+## License
 
 MIT

@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
-"""uppa – håller dina PowerShell- och Microsoft-CLI-verktyg uppdaterade, och bara dem.
-Täcker det du faktiskt har installerat: PowerShell 7 och dess moduler (Az, Graph, EXO, Teams, PnP …),
-Azure CLI + az-tillägg/Bicep, .NET + globala dotnet-verktyg, och Microsofts CLI:er i npm -g (CLI for Microsoft 365).
-Kusinen Puppa (github.com/pipebreak33/puppa) installeras och uppdateras också via uppa.
+"""uppa – keeps your PowerShell modules and Microsoft CLI tools up to date, and only those.
+Covers what you actually have installed: PowerShell 7 and its modules (Az, Graph, EXO, Teams, PnP …),
+the Azure CLI + az extensions/Bicep, .NET + global dotnet tools, and Microsoft's CLIs in npm -g (CLI for Microsoft 365).
+Its cousin Puppa (github.com/pipebreak33/puppa) is installed and updated through uppa too.
 
-  uppa                     meny
-  uppa status [källa|namn] vad är inaktuellt (-a visar allt)
-  uppa update [källa|namn] uppdatera (parallellt per källa, -n torrkörning, -y inga frågor, -j N)
-  uppa select              checklista: kryssa, enter, klart
-  uppa changes [namn]      release notes mellan din version och senaste
-  uppa doctor              dubbletter, rättigheter, vad som är påslaget
-  uppa ignore KÄLLA:NAMN   hoppa över något för gott (unignore för att ångra, ignore utan argument listar)
+  uppa                     menu
+  uppa status [source|name] what is outdated (-a shows everything)
+  uppa update [source|name] update (in parallel per source, -n dry run, -y no questions, -j N)
+  uppa select              checklist: tick, enter, done
+  uppa changes [name]      release notes between your version and the latest
+  uppa doctor              duplicates, permissions, what is turned on
+  uppa ignore SOURCE:NAME  skip something for good (unignore to undo, ignore without arguments lists)
   uppa nudge enable|disable|status|snooze 7d
   uppa schedule enable [--daily] [--at 09:00] | disable | status
+  uppa lang [en|sv]        language for the whole troupe (English or Swedish)
 
-Enbart standardbiblioteket, Python 3.8+.
+Standard library only, Python 3.8+.
 """
 from __future__ import annotations
 
@@ -35,7 +36,27 @@ from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
 
-VERSION = "1.1.2"
+DOC_SV = """uppa – håller dina PowerShell- och Microsoft-CLI-verktyg uppdaterade, och bara dem.
+Täcker det du faktiskt har installerat: PowerShell 7 och dess moduler (Az, Graph, EXO, Teams, PnP …),
+Azure CLI + az-tillägg/Bicep, .NET + globala dotnet-verktyg, och Microsofts CLI:er i npm -g (CLI for Microsoft 365).
+Kusinen Puppa (github.com/pipebreak33/puppa) installeras och uppdateras också via uppa.
+
+  uppa                     meny
+  uppa status [källa|namn] vad är inaktuellt (-a visar allt)
+  uppa update [källa|namn] uppdatera (parallellt per källa, -n torrkörning, -y inga frågor, -j N)
+  uppa select              checklista: kryssa, enter, klart
+  uppa changes [namn]      release notes mellan din version och senaste
+  uppa doctor              dubbletter, rättigheter, vad som är påslaget
+  uppa ignore KÄLLA:NAMN   hoppa över något för gott (unignore för att ångra, ignore utan argument listar)
+  uppa nudge enable|disable|status|snooze 7d
+  uppa schedule enable [--daily] [--at 09:00] | disable | status
+
+  uppa lang [en|sv]        språk för hela truppen (engelska eller svenska)
+
+Enbart standardbiblioteket, Python 3.8+.
+"""
+
+VERSION = "1.2.0"
 HOME = Path.home()
 DIR = HOME / ".uppa"
 CACHE = DIR / "cache.json"
@@ -69,6 +90,42 @@ MS_CASK = re.compile(r"^(powershell(@preview|-lts)?|dotnet-sdk(@.+)?|git-credent
 MS_NPM = re.compile(r"^(@pnp/cli-microsoft365|@microsoft/.+|@azure/.+|azure-functions-core-tools|"
                     r"@azure/static-web-apps-cli|@azure-tools/.+)$")
 os.environ["PATH"] = os.pathsep.join(dict.fromkeys(os.environ.get("PATH", "").split(os.pathsep) + EXTRA_PATH))
+
+# ───────────────────────────── language ─────────────────────────────
+# One setting for the whole troupe: ~/.truppa/config.json {"lang": "en"|"sv"}. TRUPPA_LANG overrides it. Default: English.
+TRUPPA = Path.home() / ".truppa" / "config.json"
+
+
+def _lang():
+    v = os.environ.get("TRUPPA_LANG")
+    if not v:
+        try:
+            v = json.loads(TRUPPA.read_text(encoding="utf-8")).get("lang")
+        except Exception:
+            v = None
+    return "sv" if str(v or "en").lower().startswith("sv") else "en"
+
+
+LANG = _lang()
+os.environ["TRUPPA_LANG"] = LANG          # PowerShell and the other tools read it too
+
+
+def L(en, sv):
+    """The text in the chosen language (English first)."""
+    return sv if LANG == "sv" else en
+
+
+def set_lang(lang):
+    global LANG
+    TRUPPA.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        cfg = json.loads(TRUPPA.read_text(encoding="utf-8"))
+    except Exception:
+        cfg = {}
+    cfg["lang"] = lang
+    TRUPPA.write_text(json.dumps(cfg, indent=1), encoding="utf-8")
+    LANG = lang
+    os.environ["TRUPPA_LANG"] = lang
 
 # ───────────────────────────── terminal ─────────────────────────────
 def _win_console():
@@ -173,13 +230,13 @@ class Live:
 
 LOGO = "U›"
 QUIPS = [
-    "Frågar Homebrew snällt om nyheter…",
-    "PowerShell Gallery tar sin fika. Strax.",
-    "Räknar versioner. Det är fler än man tror.",
-    "Det här är bara läsning. Inget ändras.",
-    "Kollar om någon släppt en .1 i natt.",
-    "Semver är ett löfte. Inte en garanti.",
-    "-WhatIf är mitt mellannamn.",
+    L("Asking Homebrew nicely for news…", "Frågar Homebrew snällt om nyheter…"),
+    L("PowerShell Gallery is on a coffee break. Hang on.", "PowerShell Gallery tar sin fika. Strax."),
+    L("Counting versions. There are more than you'd think.", "Räknar versioner. Det är fler än man tror."),
+    L("This is read-only. Nothing changes.", "Det här är bara läsning. Inget ändras."),
+    L("Checking whether someone shipped a .1 overnight.", "Kollar om någon släppt en .1 i natt."),
+    L("Semver is a promise. Not a guarantee.", "Semver är ett löfte. Inte en garanti."),
+    L("-WhatIf is my middle name.", "-WhatIf är mitt mellannamn."),
 ]
 DIRTY = False      # något har skrivits ut som användaren bör hinna läsa innan skärmen töms
 
@@ -222,7 +279,7 @@ def run(cmd, timeout=600, env=None, input=None):
                            stdin=None if input is not None else subprocess.DEVNULL)
         return p.returncode, p.stdout, p.stderr
     except FileNotFoundError:
-        return 127, "", f"{cmd[0]}: hittades inte"
+        return 127, "", L(f"{cmd[0]}: not found", f"{cmd[0]}: hittades inte")
     except subprocess.TimeoutExpired:
         return 124, "", "timeout"
 
@@ -381,14 +438,14 @@ class Brew(Source):
                     latest[(kind, f["name"])] = f["current_version"]
         items = [Item("brew", n, v, latest.get((k, n), v), label=n + (" (cask)" if k == "cask" else ""),
                       meta={"kind": k}) for (k, n), v in sorted(inst.items(), key=lambda x: x[0][1])]
-        return items, ", ".join(i.name for i in items) or "inga Microsoft-paket"
+        return items, ", ".join(i.name for i in items) or L("no Microsoft packages", "inga Microsoft-paket")
 
     def tasks(self, items, plan_keys):
         out = []
         formulae = [i for i in items if i.meta.get("kind") == "formula"]
         if formulae:
             names = [i.name for i in formulae]
-            out.append(Task(f"{len(names)} formulor" if len(names) > 1 else names[0],
+            out.append(Task(L(f"{len(names)} formulae", f"{len(names)} formulor") if len(names) > 1 else names[0],
                             ["brew", "upgrade", "--formula", *names], "brew", items=formulae, env=BREW_ENV,
                             fallback=[["brew", "upgrade", "--formula", n] for n in names]))
         for i in items:
@@ -425,7 +482,7 @@ class Npm(Source):
             o = outd.get(name)
             latest = o.get("latest") if o else d.get("version")
             items.append(Item("npm", name, d.get("version", "?"), latest))
-        s = f"{len(items)} Microsoft-paket" + (dim(" · kräver sudo") if items and self.needs_sudo() else "")
+        s = L(f"{len(items)} Microsoft packages", f"{len(items)} Microsoft-paket") + (dim(L(" · needs sudo", " · kräver sudo")) if items and self.needs_sudo() else "")
         return items, s
 
     def tasks(self, items, plan_keys):
@@ -433,7 +490,7 @@ class Npm(Source):
             return []
         sudo = self.needs_sudo()
         args = ["npm", "install", "-g", *[f"{i.name}@latest" for i in items]]
-        return [Task(f"{len(items)} paket" if len(items) > 1 else items[0].name,
+        return [Task(L(f"{len(items)} packages", f"{len(items)} paket") if len(items) > 1 else items[0].name,
                      (["sudo"] + args) if sudo else args, "npm", interactive=sudo, items=items)]
 
 
@@ -464,7 +521,7 @@ if ($roots.Count) {
 
 
 class Pwsh(Source):
-    key, title = "pwsh", "PowerShell-moduler"
+    key, title = "pwsh", L("PowerShell modules", "PowerShell-moduler")
 
     def available(self):
         return have("pwsh")
@@ -480,7 +537,7 @@ class Pwsh(Source):
                 sub += 1
                 continue
             items.append(Item("pwsh", r["n"], r["v"], r.get("l") or r["v"], meta={"uri": r.get("u") or ""}))
-        return items, f"{len(rows)} moduler ({sub} följer med Az/Graph)"
+        return items, L(f"{len(rows)} modules ({sub} come with Az/Graph)", f"{len(rows)} moduler ({sub} följer med Az/Graph)")
 
     @staticmethod
     def lane_for(name):
@@ -499,14 +556,14 @@ class Pwsh(Source):
             names = ",".join("'" + i.name.replace("'", "''") + "'" for i in its)
             ps = (f"$ProgressPreference='SilentlyContinue'; Update-Module -Name {names} -Force -AcceptLicense "
                   f"-ErrorAction Stop -Verbose 4>&1 | ForEach-Object {{ $_.ToString() }}")
-            out.append(Task(", ".join(i.name for i in its) if len(its) <= 3 else f"{len(its)} moduler",
+            out.append(Task(", ".join(i.name for i in its) if len(its) <= 3 else L(f"{len(its)} modules", f"{len(its)} moduler"),
                             ps_cmd(ps), lane, items=its,
                             after=("brew",) if "brew:powershell" in plan_keys else ()))
         return out
 
 
 class AzExt(Source):
-    key, title = "az", "az-tillägg"
+    key, title = "az", L("az extensions", "az-tillägg")
 
     def available(self):
         return have("az")
@@ -528,7 +585,7 @@ class AzExt(Source):
             vers = json.loads(out2 or "[]")
             lat = vers[0].lstrip("v") if vers else m.group(1)
             items.append(Item("az", "bicep", m.group(1), lat, label="Bicep"))
-        return items, f"{len(items)} st"
+        return items, L(f"{len(items)}", f"{len(items)} st")
 
     def tasks(self, items, plan_keys):
         after = ("brew",) if "brew:azure-cli" in plan_keys else ()
@@ -540,7 +597,7 @@ class AzExt(Source):
 
 
 class Dotnet(Source):
-    key, title = "dotnet", ".NET-verktyg"
+    key, title = "dotnet", L(".NET tools", ".NET-verktyg")
 
     def available(self):
         return have("dotnet")
@@ -561,7 +618,7 @@ class Dotnet(Source):
 
         with ThreadPoolExecutor(6) as ex:
             items = list(ex.map(one, rows))
-        return items, f"{len(items)} verktyg"
+        return items, L(f"{len(items)} tools", f"{len(items)} verktyg")
 
     def tasks(self, items, plan_keys):
         return [Task(i.name, ["dotnet", "tool", "update", "-g", i.name], "dotnet", items=[i]) for i in items]
@@ -638,7 +695,7 @@ class Winget(Source):
             if MS_WINGET.match(p["id"]):
                 items.append(Item("winget", p["id"], p["version"], p.get("available") or p["version"],
                                   label=p.get("name") or p["id"]))
-        return items, ", ".join(i.label for i in items) or "inga Microsoft-paket"
+        return items, ", ".join(i.label for i in items) or L("no Microsoft packages", "inga Microsoft-paket")
 
     def tasks(self, items, plan_keys):
         out = []
@@ -675,12 +732,12 @@ class Self(Source):
     def scan(self):
         lat, _ = github_version("uppa", "uppa.py")
         repo, branch = repo_for("uppa")
-        where = "utvecklingskopia (git)" if is_git_checkout() else f"github.com/{repo}"
+        where = L("development copy (git)", "utvecklingskopia (git)") if is_git_checkout() else f"github.com/{repo}"
         return [Item("self", "uppa", VERSION, lat or VERSION, label="uppa")], where
 
     def tasks(self, items, plan_keys):
         cmd = [sys.executable, os.path.realpath(__file__), "self-update", "--yes", "--no-anim"]
-        return [Task("Uppa (sig själv)", cmd, "uppa", items=items)] if items else []
+        return [Task(L("Uppa (itself)", "Uppa (sig själv)"), cmd, "uppa", items=items)] if items else []
 
 
 class Puppa(Source):
@@ -696,11 +753,11 @@ class Puppa(Source):
     def scan(self):
         lat = self.latest()
         if not have("puppa"):
-            hint = "inte installerad → uppa install puppa" if lat else "inte installerad · inte publicerad än"
+            hint = L("not installed → uppa install puppa", "inte installerad → uppa install puppa") if lat else L("not installed · not published yet", "inte installerad · inte publicerad än")
             return [], hint
         m = re.search(r"\d+\.\d+(\.\d+)?", run(["puppa", "--version"], timeout=30)[1])
         cur = m.group(0) if m else "?"
-        return [Item("puppa", "puppa", cur, lat or cur, label="Puppa")], "PowerShell med några knapptryck"
+        return [Item("puppa", "puppa", cur, lat or cur, label="Puppa")], L("PowerShell in a few keystrokes", "PowerShell med några knapptryck")
 
     def tasks(self, items, plan_keys):
         return [Task("Puppa", sibling_installer("puppa"), "puppa", items=items)] if items else []
@@ -720,7 +777,19 @@ ART = ["██     ██", "██{e}██", "██{m}██", "██▄   �
 SHADE = ["38;5;121", "38;5;85", "38;5;49", "38;5;43", "38;5;36"]      # ljus topp → mörkare botten
 SAD_SHADE = ["38;5;152", "38;5;115", "38;5;109", "38;5;72", "38;5;66"]
 ART_W = 9
-JOKES = [
+JOKES_EN = [
+    "I'm Uppa. It stands for updates on autopilot. Sort of.",
+    "I'm a U. It stands for Up to date. Or Unbelievable. You choose.",
+    "Have you tried turning it off and on again? I mean Update-Module.",
+    "I'm shaped like a cup. Full of updates.",
+    "There are two kinds of admins: those who take backups, and those who will.",
+    "Connect-MgGraph: because one sign-in a day is never enough.",
+    "I never break. I just get new major versions.",
+    "-WhatIf is my middle name. -Confirm is my last name.",
+    "The AzureAD module? We don't talk about the AzureAD module.",
+    "My cousin Puppa runs the recipes. I keep the modules fresh.",
+]
+JOKES_SV = [
     "Jag heter Uppa. Det står för uppdatera på autopilot. Typ.",
     "Jag är ett U. Det står för Uppdaterad. Eller Underbar. Du väljer.",
     "Har du testat att stänga av och sätta på den igen? Jag menar Update-Module.",
@@ -854,7 +923,7 @@ class Spinner:
     def text(self, i, el):
         if isinstance(self.pending, dict):
             left = list(self.pending.values())
-            m = "Väntar på " + ", ".join(left[:3]) + (f" +{len(left) - 3}" if len(left) > 3 else "")
+            m = L("Waiting for ", "Väntar på ") + ", ".join(left[:3]) + (f" +{len(left) - 3}" if len(left) > 3 else "")
         else:
             m = str(self.pending)
         q = QUIPS[int(el / 4.5) % len(QUIPS)] if el > 4 else ""
@@ -975,12 +1044,12 @@ def section_head(title, sub, right, w):
 
 def ago(secs):
     if secs < 90:
-        return "nyss"
+        return L("just now", "nyss")
     if secs < 3600:
-        return f"{int(secs // 60)} min sedan"
+        return L(f"{int(secs // 60)} min ago", f"{int(secs // 60)} min sedan")
     if secs < 86400:
-        return f"{int(secs // 3600)} h sedan"
-    return f"{int(secs // 86400)} d sedan"
+        return L(f"{int(secs // 3600)} h ago", f"{int(secs // 3600)} h sedan")
+    return L(f"{int(secs // 86400)} d ago", f"{int(secs // 86400)} d sedan")
 
 
 def print_status(cache, words=None, show_all=False, hints=True):
@@ -1000,13 +1069,13 @@ def print_status(cache, words=None, show_all=False, hints=True):
         total += len([i for i in outd if not i.manual])
         majors += len([i for i in outd if i.current and i.latest != "?" and major_bump(i.current, i.latest)])
         if data.get("error"):
-            right = red("✘ fel")
+            right = red(L("✘ error", "✘ fel"))
         elif s.key == "puppa" and not its:
-            right = dim("○ inte installerad")
+            right = dim(L("○ not installed", "○ inte installerad"))
         elif outd:
-            right = yellow(f"{len(outd)} att uppdatera")
+            right = yellow(L(f"{len(outd)} to update", f"{len(outd)} att uppdatera"))
         else:
-            right = green("✔ aktuellt")
+            right = green(L("✔ up to date", "✔ aktuellt"))
         print(fit(section_head(s.title.upper(), data["summary"], right, W)))
         if data.get("error"):
             print(fit(dim("     " + data["error"])))
@@ -1016,20 +1085,20 @@ def print_status(cache, words=None, show_all=False, hints=True):
             for row in item_rows(i, cols, W):
                 print(fit(row))
         if limit and len(show) > limit:
-            print(fit(dim(f"     … +{len(show) - limit} till  →  uppa status {s.key}")))
+            print(fit(dim(L(f"     … +{len(show) - limit} more  →  uppa status {s.key}", f"     … +{len(show) - limit} till  →  uppa status {s.key}"))))
         if show:
             print()
     print(dim("  " + "─" * (W - 4)))
     if total:
-        left = f"  {yellow('▲')} {bold(str(total))} kan uppdateras" + \
-               (dim(f" · {majors} nya huvudversioner") if majors else "")
+        left = L(f"  {yellow('▲')} {bold(str(total))} can be updated", f"  {yellow('▲')} {bold(str(total))} kan uppdateras") + \
+               (dim(L(f" · {majors} new major versions", f" · {majors} nya huvudversioner")) if majors else "")
     else:
-        left = f"  {green('✔')} Allt är uppdaterat"
-    right = dim("skannat " + ago(time.time() - cache.get("time", 0)))
+        left = L(f"  {green('✔')} Everything is up to date", f"  {green('✔')} Allt är uppdaterat")
+    right = dim(L("scanned ", "skannat ") + ago(time.time() - cache.get("time", 0)))
     print(fit(left + " " * max(2, W - 1 - vlen(left) - vlen(right)) + right))
     n_ign = len(config()["ignore"])
     if n_ign:
-        print(dim(f"    {n_ign} ignoreras (uppa ignore)"))
+        print(dim(L(f"    {n_ign} ignored (uppa ignore)", f"    {n_ign} ignoreras (uppa ignore)")))
     if hints:
         print(fit(dim("    uppa update · uppa select · uppa changes · uppa status --refresh")))
     print()
@@ -1053,7 +1122,7 @@ def print_plan(tasks):
         tag = yellow(" (egen terminal)") if t.interactive else ""
         print(fit(f"   {accent('•')} {pad(cut(t.label, 40), 41)} {dim(show_cmd(t.cmd))}{tag}"))
         if len(t.items) > 1:
-            names = ", ".join(f"{i.name} (ny)" if i.current == "–" else f"{i.name} {i.current}→{i.latest}" for i in t.items)
+            names = ", ".join(L(f"{i.name} (new)", f"{i.name} (ny)") if i.current == "–" else f"{i.name} {i.current}→{i.latest}" for i in t.items)
             print(dim("       " + cut(names, width() - 10)))
     print()
 
@@ -1088,13 +1157,13 @@ class Board:
             running = sum(t.state == "running" for t in self.tasks)
             lanes = len({t.lane for t in self.tasks})
             out = [f"  {accent('»')} {len(self.tasks)} jobb · {lanes} spår parallellt  "
-                   f"{dim(f'{running} kör · {done}/{len(self.tasks)} klara')}"]
+                   f"{dim(L(f'{running} running · {done}/{len(self.tasks)} done', f'{running} kör · {done}/{len(self.tasks)} klara'))}"]
             fr = Spinner.FRAMES[int(time.time() * 11) % 10]
             for t in self.tasks:
                 icon = {"ok": green("✔"), "fail": red("✘"), "running": accent(fr), "waiting": dim("◌"),
                         "skip": yellow("–")}.get(t.state, dim("○"))
-                msg = {"waiting": "väntar på " + ", ".join(sorted(t.after)), "queued": "i kö",
-                       "ok": "klart", "skip": "hoppas över"}.get(t.state, t.last)
+                msg = {"waiting": L("waiting for ", "väntar på ") + ", ".join(sorted(t.after)), "queued": L("queued", "i kö"),
+                       "ok": L("done", "klart"), "skip": L("skipped", "hoppas över")}.get(t.state, t.last)
                 if t.state == "fail":
                     msg = "misslyckades" + (": " + t.last if t.last else "")
                 lane = pad(dim(t.lane), 12) if w >= 70 else ""
@@ -1117,7 +1186,7 @@ def exec_task(t, log):
                                  stdin=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace",
                                  env={**os.environ, **t.env}, bufsize=1)
         except FileNotFoundError:
-            t.output.append(f"{cmd[0]}: hittades inte")
+            t.output.append(L(f"{cmd[0]}: not found", f"{cmd[0]}: hittades inte"))
             return 127
         for line in p.stdout:
             line = line.rstrip()
@@ -1129,7 +1198,7 @@ def exec_task(t, log):
     t.state, t.t0 = "running", time.time()
     rc = one(t.cmd)
     if rc != 0 and t.fallback:
-        t.output.append("== samlad körning misslyckades, provar en i taget ==")
+        t.output.append(L("== the batch run failed, trying one at a time ==", "== samlad körning misslyckades, provar en i taget =="))
         bad = []
         for cmd in t.fallback:
             if one(cmd) != 0:
@@ -1169,7 +1238,7 @@ def run_plan(tasks, jobs=4, unattended=False):
                             done_ev[d].wait()
                         failed = [x for x in bg if x.lane in deps and x.state == "fail"]
                         if failed:
-                            t.state, t.last = "skip", f"{failed[0].label} misslyckades"
+                            t.state, t.last = "skip", L(f"{failed[0].label} failed", f"{failed[0].label} misslyckades")
                             continue
                     with sem:
                         exec_task(t, log)
@@ -1202,7 +1271,7 @@ def run_plan(tasks, jobs=4, unattended=False):
                     sys.stdout.write("\033[?25h")
         for t in fg:
             if unattended:
-                t.state, t.last = "skip", "kräver lösenord/terminal – kör uppa update själv"
+                t.state, t.last = "skip", L("needs a password/terminal – run uppa update yourself", "kräver lösenord/terminal – kör uppa update själv")
                 log.write(f"\n===== {t.label} SKIPPED (interactive)\n")
                 continue
             print(f"\n  {accent('▶')} {bold(t.label)}  {dim('$ ' + show_cmd(t.cmd))}")
@@ -1218,23 +1287,23 @@ def summarize(tasks, logpath, unattended=False):
     ok = [t for t in tasks if t.state == "ok"]
     fail = [t for t in tasks if t.state == "fail"]
     skip = [t for t in tasks if t.state == "skip"]
-    print(f"\n  {bold('Sammanfattning')}")
+    print(L(f"\n  {bold('Summary')}", f"\n  {bold('Sammanfattning')}"))
     for t in tasks:
         icon = {"ok": green("✔"), "fail": red("✘"), "skip": yellow("–")}.get(t.state, dim("?"))
         extra = ""
         if t.failed_parts:
-            extra = red("  misslyckades: " + ", ".join(t.failed_parts))
+            extra = red(L("  failed: ", "  misslyckades: ") + ", ".join(t.failed_parts))
         elif t.state != "ok" and t.last:
             extra = dim("  " + cut(t.last, 60))
         print(f"   {icon} {pad(cut(t.label, 34), 35)}{pad(dim(t.lane), 12)}{dim(t.secs)}{extra}")
-    print(dim(f"\n  logg: {str(logpath).replace(str(HOME), '~')}"))
+    print(dim(L(f"\n  log: {str(logpath).replace(str(HOME), '~')}", f"\n  logg: {str(logpath).replace(str(HOME), '~')}")))
     print()
     if not fail and not skip:
-        celebrate(f"Klart! {len(ok)} jobb gick vägen. Allt är uppat.")
+        celebrate(L(f"Done! {len(ok)} jobs went through. Everything is upped.", f"Klart! {len(ok)} jobb gick vägen. Allt är uppat."))
     elif fail:
-        say(f"Det gick inte hela vägen. {len(fail)} misslyckades – loggen visar varför, resten gick bra.", "sad")
+        say(L(f"It didn't go all the way. {len(fail)} failed – the log shows why, the rest went fine.", f"Det gick inte hela vägen. {len(fail)} misslyckades – loggen visar varför, resten gick bra."), "sad")
     else:
-        say(f"Klart, men {len(skip)} behöver dig (lösenord eller UAC). Kör uppa update när du sitter vid datorn.", "worry")
+        say(L(f"Done, but {len(skip)} need you (password or UAC). Run uppa update when you're at the computer.", f"Klart, men {len(skip)} behöver dig (lösenord eller UAC). Kör uppa update när du sitter vid datorn."), "worry")
     print()
     st = load_json(STATE, {})
     st["last_run"] = {"time": time.time(), "unattended": unattended, "ok": len(sum((t.items for t in ok), [])),
@@ -1246,22 +1315,22 @@ def summarize(tasks, logpath, unattended=False):
 def do_update(items, args, unattended=False):
     items = [i for i in items if i.outdated and not i.manual]
     if not items:
-        say("Inget att uppdatera. Allt är redan fräscht.", "proud")
+        say(L("Nothing to update. Everything is already fresh.", "Inget att uppdatera. Allt är redan fräscht."), "proud")
         print()
         return 0
     tasks = build_plan(items)
     print_plan(tasks)
     if args.dry_run:
-        say("Torrkörning: inget kördes. Så här skulle det se ut.", "happy")
+        say(L("Dry run: nothing ran. This is what it would look like.", "Torrkörning: inget kördes. Så här skulle det se ut."), "happy")
         print()
         return 0
     if not (args.yes or unattended):
-        a = ask("Kör?", True, "/c")
+        a = ask(L("Run?", "Kör?"), True, "/c")
         if a == "c":
             show_changes(items)
-            a = ask("Kör?", True)
+            a = ask(L("Run?", "Kör?"), True)
         if not a:
-            say("Okej, inget ändrat.", "happy")
+            say(L("Okay, nothing changed.", "Okej, inget ändrat."), "happy")
             print()
             return 1
     logpath = run_plan(tasks, args.jobs, unattended)
@@ -1364,7 +1433,7 @@ def show_changes(items, maxlines=12):
     for i, repo, rels in res:
         print(f"\n  {accent('▶')} {bold(i.label)}  {dim(i.current)} → {green(i.latest)}")
         if not repo:
-            print(dim("    hittade ingen GitHub-källa för release notes"))
+            print(dim(L("    found no GitHub source for release notes", "    hittade ingen GitHub-källa för release notes")))
             continue
         if not rels:
             print(dim(f"    inga GitHub-releaser mellan versionerna · https://github.com/{repo[0]}/{repo[1]}"))
@@ -1375,9 +1444,9 @@ def show_changes(items, maxlines=12):
             for l in lines:
                 print("      " + l)
             if extra:
-                print(dim(f"      … +{extra} rader  {r.get('html_url')}"))
+                print(dim(L(f"      … +{extra} lines  {r.get('html_url')}", f"      … +{extra} rader  {r.get('html_url')}")))
         if len(rels) > 4:
-            print(dim(f"    … +{len(rels) - 4} äldre releaser"))
+            print(dim(L(f"    … +{len(rels) - 4} older releases", f"    … +{len(rels) - 4} äldre releaser")))
     print()
 
 
@@ -1451,7 +1520,7 @@ def pick(rows, chosen, title, line_fn, can_pick=lambda v: True, hotkeys=None, he
         h = max(4, shutil.get_terminal_size((100, 30)).lines - 4)
         top = min(max(top, pos - h + 1), pos)
         top = max(0, min(top, max(0, len(rows) - h)))
-        out = [f"  {accent('▍')}{bold(title)}  {dim(f'{len(chosen)} valda')}"]
+        out = [L(f"  {accent('▍')}{bold(title)}  {dim(f'{len(chosen)} selected')}", f"  {accent('▍')}{bold(title)}  {dim(f'{len(chosen)} valda')}")]
         for k in range(top, min(len(rows), top + h)):
             kind, v = rows[k]
             if kind == "head":
@@ -1459,7 +1528,7 @@ def pick(rows, chosen, title, line_fn, can_pick=lambda v: True, hotkeys=None, he
                 continue
             mark = (green("◉") if id(v) in chosen else dim("○")) if can_pick(v) else green("✔")
             out.append(f" {accent('❯' if k == pos else ' ')} {mark} {line_fn(v)}")
-        out.append(dim("  ↑/↓ flytta · space välj · a alla · n inga" + help_extra + " · enter kör · q avbryt"))
+        out.append(dim(L("  ↑/↓ move · space pick · a all · n none", "  ↑/↓ flytta · space välj · a alla · n inga") + help_extra + L(" · enter runs · q cancel", " · enter kör · q avbryt")))
         live.draw(out)
 
     with Keys() as kb:
@@ -1508,9 +1577,9 @@ def checklist(items):
         return chosen - ids if ids <= chosen else chosen | ids
 
     names = [i.label for i in pickable]
-    return pick(rows, {id(i) for i in pickable}, "Välj vad som ska uppdateras",
+    return pick(rows, {id(i) for i in pickable}, L("Pick what to update", "Välj vad som ska uppdateras"),
                 lambda i: item_line(i, cols_for(min(width(), 104) - 4, names)),
-                hotkeys={"s": whole_source}, help_extra=" · s hela källan")
+                hotkeys={"s": whole_source}, help_extra=L(" · s whole source", " · s hela källan"))
 
 
 # ───────────────────────────── nudge / schedule ─────────────────────────────
@@ -1577,7 +1646,7 @@ def parse_dur(s):
 def parse_at(s):
     m = re.fullmatch(r"(\d{1,2}):(\d{2})", s or "")
     if not m or int(m.group(1)) > 23 or int(m.group(2)) > 59:
-        raise ValueError("tid ska vara HH:MM")
+        raise ValueError(L("time must be HH:MM", "tid ska vara HH:MM"))
     return int(m.group(1)), int(m.group(2))
 
 
@@ -1588,11 +1657,11 @@ def nudge_hook():
         now = time.time()
         lr = st.get("last_run")
         if lr and not lr.get("seen"):
-            msg = f"schemakörningen uppdaterade {lr['ok']} st"
+            msg = L(f"the scheduled run updated {lr['ok']}", f"schemakörningen uppdaterade {lr['ok']} st")
             if lr.get("skip"):
-                msg += f", hoppade över {len(lr['skip'])} (kräver dig) → uppa update"
+                msg += L(f", skipped {len(lr['skip'])} (need you) → uppa update", f", hoppade över {len(lr['skip'])} (kräver dig) → uppa update")
             if lr.get("fail"):
-                msg += f", {len(lr['fail'])} misslyckades → uppa doctor"
+                msg += L(f", {len(lr['fail'])} failed → uppa doctor", f", {len(lr['fail'])} misslyckades → uppa doctor")
             print(f"  {accent(LOGO)} {bold('uppa')} {msg}")
             lr["seen"] = True
             save_json(STATE, st)
@@ -1612,7 +1681,7 @@ def nudge_hook():
             return
         me = next((i for i in items if i.source == "self"), None)
         if me:
-            print(f"  {accent(LOGO)} {bold('uppa')} {me.latest} finns på GitHub → {bold('uppa self-update')}")
+            print(L(f"  {accent(LOGO)} {bold('uppa')} {me.latest} is on GitHub → {bold('uppa self-update')}", f"  {accent(LOGO)} {bold('uppa')} {me.latest} finns på GitHub → {bold('uppa self-update')}"))
             items = [i for i in items if i is not me]
             if not items:
                 st["nudged_day"] = datetime.now().strftime("%Y-%m-%d")
@@ -1622,7 +1691,7 @@ def nudge_hook():
         for i in items:
             srcs[BY_KEY[i.source].title] = srcs.get(BY_KEY[i.source].title, 0) + 1
         top = ", ".join(f"{k} {v}" for k, v in sorted(srcs.items(), key=lambda x: -x[1])[:4])
-        print(f"  {accent(LOGO)} {bold('uppa')} {len(items)} saker kan uppdateras ({top}) → {bold('uppa update')}")
+        print(L(f"  {accent(LOGO)} {bold('uppa')} {len(items)} things can be updated ({top}) → {bold('uppa update')}", f"  {accent(LOGO)} {bold('uppa')} {len(items)} saker kan uppdateras ({top}) → {bold('uppa update')}"))
         st["nudged_day"] = datetime.now().strftime("%Y-%m-%d")
         save_json(STATE, st)
     except Exception:
@@ -1633,26 +1702,26 @@ def cmd_nudge(a):
     st = load_json(STATE, {})
     if a.action == "enable":
         for rc in rc_files():
-            print(f"  {green('✔')} lade till påminnelsen i {rc}" if add_block(rc, body_for(rc))
-                  else f"  redan påslagen i {rc}")
+            print(L(f"  {green('✔')} added the reminder to {rc}", f"  {green('✔')} lade till påminnelsen i {rc}") if add_block(rc, body_for(rc))
+                  else L(f"  already on in {rc}", f"  redan påslagen i {rc}"))
     elif a.action == "disable":
         removed = [rc for rc in rc_files() if remove_block(rc)]
         for rc in removed:
-            print(f"  {green('✔')} tog bort blocket ur {rc}")
+            print(L(f"  {green('✔')} removed the block from {rc}", f"  {green('✔')} tog bort blocket ur {rc}"))
         if not removed:
-            print("  var inte påslagen")
+            print(L("  wasn't on", "  var inte påslagen"))
     elif a.action == "snooze":
         secs = parse_dur(a.arg or "7d")
         if not secs:
-            sys.exit("  ange t.ex. 3d, 12h eller 30m")
+            sys.exit(L("  give e.g. 3d, 12h or 30m", "  ange t.ex. 3d, 12h eller 30m"))
         st["snooze_until"] = time.time() + secs
         save_json(STATE, st)
-        print(f"  tyst till {datetime.fromtimestamp(st['snooze_until']).strftime('%Y-%m-%d %H:%M')}")
+        print(L(f"  quiet until {datetime.fromtimestamp(st['snooze_until']).strftime('%Y-%m-%d %H:%M')}", f"  tyst till {datetime.fromtimestamp(st['snooze_until']).strftime('%Y-%m-%d %H:%M')}"))
     else:
         on = nudge_on()
-        print(f"  påminnelse: {green('på') if on else dim('av')}" + (dim(" · " + ", ".join(map(str, on))) if on else ""))
+        print(L(f"  reminder: {green('on') if on else dim('off')}", f"  påminnelse: {green('på') if on else dim('av')}") + (dim(" · " + ", ".join(map(str, on))) if on else ""))
         if st.get("snooze_until", 0) > time.time():
-            print(f"  tyst till {datetime.fromtimestamp(st['snooze_until']).strftime('%Y-%m-%d %H:%M')}")
+            print(L(f"  quiet until {datetime.fromtimestamp(st['snooze_until']).strftime('%Y-%m-%d %H:%M')}", f"  tyst till {datetime.fromtimestamp(st['snooze_until']).strftime('%Y-%m-%d %H:%M')}"))
 
 
 def plist_xml(daily, hh, mm):
@@ -1703,33 +1772,33 @@ def cmd_schedule(a):
     if a.action == "enable":
         hh, mm = parse_at(a.at)
         xml = plist_xml(a.daily, hh, mm)
-        when = ("varje dag" if a.daily else "måndagar") + f" {hh:02d}:{mm:02d}"
+        when = (L("every day", "varje dag") if a.daily else L("Mondays", "måndagar")) + f" {hh:02d}:{mm:02d}"
         if a.dry_run:
-            print(f"  skulle skriva {PLIST} ({when}):\n\n{xml}")
+            print(L(f"  would write {PLIST} ({when}):\n\n{xml}", f"  skulle skriva {PLIST} ({when}):\n\n{xml}"))
             return
         LOGS.mkdir(parents=True, exist_ok=True)
         PLIST.parent.mkdir(parents=True, exist_ok=True)
         run(["launchctl", "bootout", f"gui/{uid}/{LABEL}"])
         PLIST.write_text(xml, encoding="utf-8")
         rc, _, err = run(["launchctl", "bootstrap", f"gui/{uid}", str(PLIST)])
-        print(f"  {green('✔')} automatisk uppdatering {when}" if rc == 0 else red(f"  launchctl: {err.strip()}"))
-        print(dim("    saker som kräver lösenord (casks, sudo-npm) hoppas över och visas i nästa terminal"))
+        print(L(f"  {green('✔')} automatic update {when}", f"  {green('✔')} automatisk uppdatering {when}") if rc == 0 else red(f"  launchctl: {err.strip()}"))
+        print(dim(L("    things that need a password (casks, sudo npm) are skipped and shown in the next terminal", "    saker som kräver lösenord (casks, sudo-npm) hoppas över och visas i nästa terminal")))
         return
     elif a.action == "disable":
         run(["launchctl", "bootout", f"gui/{uid}/{LABEL}"])
         if PLIST.exists():
             PLIST.unlink()
-        print(f"  {green('✔')} schemat borttaget")
+        print(L(f"  {green('✔')} schedule removed", f"  {green('✔')} schemat borttaget"))
     else:
         if not PLIST.exists():
-            print(f"  schema: {dim('av')}  →  uppa schedule enable")
+            print(L(f"  schedule: {dim('off')}  →  uppa schedule enable", f"  schema: {dim('av')}  →  uppa schedule enable"))
             return
         txt = PLIST.read_text(encoding="utf-8")
         h = re.search(r"<key>Hour</key><integer>(\d+)", txt)
         m = re.search(r"<key>Minute</key><integer>(\d+)", txt)
-        when = ("måndagar" if "Weekday" in txt else "varje dag") + f" {int(h.group(1)):02d}:{int(m.group(1)):02d}"
+        when = (L("Mondays", "måndagar") if "Weekday" in txt else L("every day", "varje dag")) + f" {int(h.group(1)):02d}:{int(m.group(1)):02d}"
         loaded = run(["launchctl", "print", f"gui/{uid}/{LABEL}"])[0] == 0
-        print(f"  schema: {green('på') if loaded else yellow('fil finns men ej laddad')} · {when}")
+        print(L(f"  schedule: {green('on') if loaded else yellow('file exists but not loaded')} · {when}", f"  schema: {green('på') if loaded else yellow('fil finns men ej laddad')} · {when}"))
         lr = load_json(STATE, {}).get("last_run")
         if lr:
             print(dim(f"  senaste körning {datetime.fromtimestamp(lr['time']).strftime('%Y-%m-%d %H:%M')} · "
@@ -1741,35 +1810,35 @@ def schedule_other(a):
     py, script = runner()
     if a.action == "enable":
         hh, mm = parse_at(a.at)
-        when = ("varje dag" if a.daily else "måndagar") + f" {hh:02d}:{mm:02d}"
+        when = (L("every day", "varje dag") if a.daily else L("Mondays", "måndagar")) + f" {hh:02d}:{mm:02d}"
         if IS_WIN:
             cmd = ["schtasks", "/Create", "/TN", TASK_NAME, "/TR", f'"{py}" "{script}" update --yes --unattended',
                    "/SC", "DAILY" if a.daily else "WEEKLY"] + ([] if a.daily else ["/D", "MON"]) + \
                   ["/ST", f"{hh:02d}:{mm:02d}", "/F"]
             if a.dry_run:
-                print("  skulle köra: " + " ".join(cmd))
+                print(L("  would run: ", "  skulle köra: ") + " ".join(cmd))
                 return
             rc, out, err = run(cmd)
         else:
             line = f'{mm} {hh} * * {"*" if a.daily else "1"} UPPA_NO_ANIM=1 PATH="{os.pathsep.join(EXTRA_PATH)}" ' \
                    f'"{py}" "{script}" update --yes --unattended >> "{LOGS}/schedule.out" 2>&1 {CRON_TAG}'
             if a.dry_run:
-                print("  skulle lägga till i crontab:\n  " + line)
+                print(L("  would add to crontab:\n  ", "  skulle lägga till i crontab:\n  ") + line)
                 return
             LOGS.mkdir(parents=True, exist_ok=True)
             cur = [l for l in run(["crontab", "-l"])[1].splitlines() if CRON_TAG not in l]
             rc, out, err = run(["crontab", "-"], input="\n".join(cur + [line]) + "\n")
-        print(f"  {green('✔')} automatisk uppdatering {when}" if rc == 0 else red(f"  fel: {(err or out).strip()}"))
-        print(dim("    saker som kräver lösenord/UAC hoppas över och visas i nästa terminal"))
+        print(L(f"  {green('✔')} automatic update {when}", f"  {green('✔')} automatisk uppdatering {when}") if rc == 0 else red(L(f"  error: {(err or out).strip()}", f"  fel: {(err or out).strip()}")))
+        print(dim(L("    things that need a password/UAC are skipped and shown in the next terminal", "    saker som kräver lösenord/UAC hoppas över och visas i nästa terminal")))
     elif a.action == "disable":
         if IS_WIN:
             run(["schtasks", "/Delete", "/TN", TASK_NAME, "/F"])
         else:
             cur = [l for l in run(["crontab", "-l"])[1].splitlines() if CRON_TAG not in l]
             run(["crontab", "-"], input="\n".join(cur) + "\n")
-        print(f"  {green('✔')} schemat borttaget")
+        print(L(f"  {green('✔')} schedule removed", f"  {green('✔')} schemat borttaget"))
     else:
-        print(f"  schema: {green('på') if schedule_on() else dim('av  →  uppa schedule enable')}")
+        print(L(f"  schedule: {green('on') if schedule_on() else dim('off  →  uppa schedule enable')}", f"  schema: {green('på') if schedule_on() else dim('av  →  uppa schedule enable')}"))
         lr = load_json(STATE, {}).get("last_run")
         if lr:
             print(dim(f"  senaste körning {datetime.fromtimestamp(lr['time']).strftime('%Y-%m-%d %H:%M')} · "
@@ -1792,56 +1861,56 @@ def cmd_doctor(a):
     banner()
     ok = lambda m: print(f"  {green('✔')} {m}")
     warn = lambda m, fix="": print(f"  {yellow('▲')} {m}" + (f"\n      {dim('→ ' + fix)}" if fix else ""))
-    print(f"  {bold('Källor')}")
+    print(L(f"  {bold('Sources')}", f"  {bold('Källor')}"))
     for s in SOURCES:
         print(f"   {green('●') if s.available() else dim('○')} {pad(s.title, 24)}{dim(s.key)}")
-    print(f"\n  {bold('Kontroller')}")
+    print(L(f"\n  {bold('Checks')}", f"\n  {bold('Kontroller')}"))
     npm = BY_KEY["npm"]
     if npm.available() and npm.needs_sudo():
-        warn(f"npm:s globala mapp ({npm.prefix()}) ägs av root – m365-uppdateringar kräver sudo",
-             "npm config set prefix ~/.npm-global och lägg ~/.npm-global/bin i PATH, så slipper du sudo")
+        warn(L(f"npm's global folder ({npm.prefix()}) is owned by root – m365 updates need sudo", f"npm:s globala mapp ({npm.prefix()}) ägs av root – m365-uppdateringar kräver sudo"),
+             L("npm config set prefix ~/.npm-global and put ~/.npm-global/bin in PATH to avoid sudo", "npm config set prefix ~/.npm-global och lägg ~/.npm-global/bin i PATH, så slipper du sudo"))
     # PATH shadowing
     for cmd in ("pwsh", "az", "dotnet", "m365"):
         paths = which_all(cmd)
         if len(paths) > 1:
-            warn(f"{cmd} finns på flera ställen i PATH, {paths[0]} vinner", ", ".join(paths[1:]))
+            warn(L(f"{cmd} is in several places in PATH, {paths[0]} wins", f"{cmd} finns på flera ställen i PATH, {paths[0]} vinner"), ", ".join(paths[1:]))
     if have("pwsh"):
         rc, out, _ = run(ps_cmd("$PSVersionTable.PSVersion.ToString()"), timeout=60)
-        ok(f"pwsh {out.strip()} startar") if rc == 0 else warn("pwsh startar inte", "pwsh -NoProfile")
+        ok(L(f"pwsh {out.strip()} starts", f"pwsh {out.strip()} startar")) if rc == 0 else warn(L("pwsh doesn't start", "pwsh startar inte"), "pwsh -NoProfile")
     if have("az"):
         rc, out, _ = run(["az", "account", "show", "--query", "user.name", "-o", "tsv"], timeout=60)
-        ok(f"az inloggad som {out.strip()}") if rc == 0 else warn("az är inte inloggad", "az login")
+        ok(L(f"az signed in as {out.strip()}", f"az inloggad som {out.strip()}")) if rc == 0 else warn(L("az is not signed in", "az är inte inloggad"), "az login")
     if have("m365"):
         rc, out, _ = run(["m365", "status", "--output", "text"], timeout=60)
-        ok("m365 inloggad") if rc == 0 and "Logged out" not in out else warn("m365 är inte inloggad", "m365 login")
+        ok(L("m365 signed in", "m365 inloggad")) if rc == 0 and "Logged out" not in out else warn(L("m365 is not signed in", "m365 är inte inloggad"), "m365 login")
     if have("pwsh"):
         rc, out, _ = run(ps_cmd("(Get-InstalledModule -AllVersions -EA 0 | Group-Object Name | ? Count -gt 1 | "
                                 "Measure-Object).Count"), timeout=300)
         n = int(out.strip() or 0) if out.strip().isdigit() else 0
         if n:
-            warn(f"{n} PowerShell-moduler har gamla versioner kvar (Update-Module tar inte bort dem)",
+            warn(L(f"{n} PowerShell modules have old versions left (Update-Module doesn't remove them)", f"{n} PowerShell-moduler har gamla versioner kvar (Update-Module tar inte bort dem)"),
                  "uppa clean pwsh")
     on = nudge_on()
-    print(f"\n  {bold('Påslaget')}")
-    print(f"   påminnelse i terminalen: {green('på') if on else dim('av  → uppa nudge enable')}")
-    print(f"   schemalagd uppdatering:  {green('på') if schedule_on() else dim('av  → uppa schedule enable')}")
+    print(L(f"\n  {bold('Turned on')}", f"\n  {bold('Påslaget')}"))
+    print(L(f"   reminder in the terminal: {green('on') if on else dim('off  → uppa nudge enable')}", f"   påminnelse i terminalen: {green('på') if on else dim('av  → uppa nudge enable')}"))
+    print(L(f"   scheduled update:        {green('on') if schedule_on() else dim('off  → uppa schedule enable')}", f"   schemalagd uppdatering:  {green('på') if schedule_on() else dim('av  → uppa schedule enable')}"))
     ign = config()["ignore"]
-    print(f"   ignoreras: {', '.join(ign) if ign else dim('inget')}")
+    print(L(f"   ignored: {', '.join(ign) if ign else dim('nothing')}", f"   ignoreras: {', '.join(ign) if ign else dim('inget')}"))
     print()
 
 
 def cmd_clean(a):
     if a.what != "pwsh":
-        sys.exit("  just nu: uppa clean pwsh  (tar bort gamla versioner av PowerShell-moduler)")
+        sys.exit(L("  for now: uppa clean pwsh  (removes old versions of PowerShell modules)", "  just nu: uppa clean pwsh  (tar bort gamla versioner av PowerShell-moduler)"))
     ps = ("Get-InstalledModule -AllVersions -EA 0 | Group-Object Name | ? Count -gt 1 | % { "
           "$_.Group | Sort-Object {[version]($_.Version -replace '-.*','')} -Descending | Select-Object -Skip 1 } | "
           "% { '{0}|{1}' -f $_.Name, $_.Version }")
     rows = [l.split("|") for l in run(ps_cmd(ps), timeout=300)[1].split() if "|" in l]
     if not rows:
-        print(f"  {green('✔')} inga gamla versioner")
+        print(L(f"  {green('✔')} no old versions", f"  {green('✔')} inga gamla versioner"))
         return
-    print(f"  {len(rows)} gamla versioner: " + dim(cut(", ".join(f"{n} {v}" for n, v in rows), width() * 2)))
-    if a.dry_run or not (a.yes or ask("Ta bort dem?", False)):
+    print(L(f"  {len(rows)} old versions: ", f"  {len(rows)} gamla versioner: ") + dim(cut(", ".join(f"{n} {v}" for n, v in rows), width() * 2)))
+    if a.dry_run or not (a.yes or ask(L("Remove them?", "Ta bort dem?"), False)):
         return
     for n, v in rows:
         rc, _, err = run(ps_cmd(f"Uninstall-Module -Name '{n}' -RequiredVersion '{v}' -Force -EA Stop"), timeout=300)
@@ -1851,17 +1920,17 @@ def cmd_clean(a):
 def cmd_ignore(a, add=True):
     cfg = config()
     if not a.keys:
-        print("  ignoreras:", ", ".join(cfg["ignore"]) or dim("inget"))
+        print(L("  ignored:", "  ignoreras:"), ", ".join(cfg["ignore"]) or dim(L("nothing", "inget")))
         return
     for k in a.keys:
         if ":" not in k:
-            sys.exit(f"  skriv källa:namn, t.ex. npm:{k}")
+            sys.exit(L(f"  write source:name, e.g. npm:{k}", f"  skriv källa:namn, t.ex. npm:{k}"))
         if add and k not in cfg["ignore"]:
             cfg["ignore"].append(k)
         elif not add and k in cfg["ignore"]:
             cfg["ignore"].remove(k)
     save_json(CONFIG, cfg)
-    print(f"  {green('✔')} ignoreras nu: {', '.join(cfg['ignore']) or 'inget'}")
+    print(L(f"  {green('✔')} now ignored: {', '.join(cfg['ignore']) or 'nothing'}", f"  {green('✔')} ignoreras nu: {', '.join(cfg['ignore']) or 'inget'}"))
 
 
 # ───────────────────────────── installation från GitHub ─────────────────────────────
@@ -1897,7 +1966,7 @@ def cmd_self_update(a):
     me = Path(os.path.realpath(__file__))
     if is_git_checkout():                        # utvecklingskopia: hämta med git
         if a.dry_run:
-            print(f"  skulle köra: git -C \"{me.parent}\" pull --ff-only")
+            print(L(f"  would run: git -C \"{me.parent}\" pull --ff-only", f"  skulle köra: git -C \"{me.parent}\" pull --ff-only"))
             return 0
         rc, out, err = run(["git", "-C", str(me.parent), "pull", "--ff-only"], timeout=120)
         print(("  " + green("✔") + " " if rc == 0 else "  " + red("✘") + " ") + (out or err).strip().splitlines()[-1])
@@ -1905,19 +1974,19 @@ def cmd_self_update(a):
     new, text = github_version("uppa", "uppa.py")
     repo, branch = repo_for("uppa")
     if not text:
-        sys.exit(f"  kunde inte nå github.com/{repo} ({branch})")
+        sys.exit(L(f"  could not reach github.com/{repo} ({branch})", f"  kunde inte nå github.com/{repo} ({branch})"))
     if not newer(new or "", VERSION):
-        print(f"  {green('✔')} uppa {VERSION} är senaste versionen")
+        print(L(f"  {green('✔')} uppa {VERSION} is the latest version", f"  {green('✔')} uppa {VERSION} är senaste versionen"))
         return 0
     import ast
     try:
         ast.parse(text)
     except SyntaxError:
-        sys.exit("  den nedladdade versionen är trasig, behåller nuvarande")
+        sys.exit(L("  the downloaded version is broken, keeping the current one", "  den nedladdade versionen är trasig, behåller nuvarande"))
     if a.dry_run:
-        print(f"  skulle uppdatera uppa {VERSION} → {new}")
+        print(L(f"  would update uppa {VERSION} → {new}", f"  skulle uppdatera uppa {VERSION} → {new}"))
         return 0
-    if not a.yes and not ask(f"Uppdatera uppa {VERSION} → {new}?", True):
+    if not a.yes and not ask(L(f"Update uppa {VERSION} → {new}?", f"Uppdatera uppa {VERSION} → {new}?"), True):
         return 1
     backup = me.with_suffix(".py.bak")
     shutil.copy2(me, backup)                     # går att backa med: mv ~/.uppa/uppa.py.bak ~/.uppa/uppa.py
@@ -1925,7 +1994,7 @@ def cmd_self_update(a):
     tmp.write_text(text, encoding="utf-8")
     os.replace(tmp, me)
     print()
-    celebrate(f"Jag är uppdaterad! {VERSION} → {new}. Den gamla versionen ligger kvar som uppa.py.bak.")
+    celebrate(L(f"I'm updated! {VERSION} → {new}. The old version is kept as uppa.py.bak.", f"Jag är uppdaterad! {VERSION} → {new}. Den gamla versionen ligger kvar som uppa.py.bak."))
     print()
     return 0
 
@@ -1938,48 +2007,48 @@ class Tool:
 
 
 CATALOG = [
-    Tool("powershell", "PowerShell 7", "brew", "powershell", "pwsh, själva skalet", "CLI", "Microsoft.PowerShell"),
-    Tool("azure-cli", "Azure CLI", "brew", "azure-cli", "az, Azure från terminalen", "CLI", "Microsoft.AzureCLI"),
-    Tool("azd", "Azure Developer CLI", "brew", "azure-dev", "azd up, mallar", "CLI", "Microsoft.Azure.AZD"),
-    Tool("bicep", "Bicep", "azbicep", "bicep", "IaC för Azure (via az bicep)", "CLI"),
-    Tool("azcopy", "AzCopy", "brew", "azcopy", "snabb kopiering mot Storage", "CLI", "Microsoft.Azure.AZCopy.10"),
-    Tool("dotnet", ".NET SDK", "brew", "dotnet", "dotnet, behövs för vissa moduler/verktyg", "CLI",
+    Tool("powershell", "PowerShell 7", "brew", "powershell", L("pwsh, the shell itself", "pwsh, själva skalet"), "CLI", "Microsoft.PowerShell"),
+    Tool("azure-cli", "Azure CLI", "brew", "azure-cli", L("az, Azure from the terminal", "az, Azure från terminalen"), "CLI", "Microsoft.AzureCLI"),
+    Tool("azd", "Azure Developer CLI", "brew", "azure-dev", L("azd up, templates", "azd up, mallar"), "CLI", "Microsoft.Azure.AZD"),
+    Tool("bicep", "Bicep", "azbicep", "bicep", L("IaC for Azure (via az bicep)", "IaC för Azure (via az bicep)"), "CLI"),
+    Tool("azcopy", "AzCopy", "brew", "azcopy", L("fast copying to Storage", "snabb kopiering mot Storage"), "CLI", "Microsoft.Azure.AZCopy.10"),
+    Tool("dotnet", ".NET SDK", "brew", "dotnet", L("dotnet, needed by some modules/tools", "dotnet, behövs för vissa moduler/verktyg"), "CLI",
          "Microsoft.DotNet.SDK.10"),
-    Tool("m365", "CLI for Microsoft 365", "npm", "@pnp/cli-microsoft365", "m365, hela M365 från terminalen", "CLI"),
-    Tool("puppa", "Puppa", "puppa", "puppa", "PowerShell-uppgifter med några knapptryck (PnP m.m.)", "CLI"),
-    Tool("resource-graph", "az: resource-graph", "azext", "resource-graph", "az graph query över alla prenumerationer",
+    Tool("m365", "CLI for Microsoft 365", "npm", "@pnp/cli-microsoft365", L("m365, all of M365 from the terminal", "m365, hela M365 från terminalen"), "CLI"),
+    Tool("puppa", "Puppa", "puppa", "puppa", L("PowerShell tasks in a few keystrokes (PnP etc.)", "PowerShell-uppgifter med några knapptryck (PnP m.m.)"), "CLI"),
+    Tool("resource-graph", "az: resource-graph", "azext", "resource-graph", L("az graph query across every subscription", "az graph query över alla prenumerationer"),
          "CLI"),
     Tool("Microsoft.Graph", "Microsoft Graph", "pwsh", "Microsoft.Graph",
-         "Graph v1.0: användare, grupper, enheter, Intune", "Microsoft 365"),
-    Tool("Microsoft.Graph.Beta", "Microsoft Graph Beta", "pwsh", "Microsoft.Graph.Beta", "Graphs beta-endpoints",
+         L("Graph v1.0: users, groups, devices, Intune", "Graph v1.0: användare, grupper, enheter, Intune"), "Microsoft 365"),
+    Tool("Microsoft.Graph.Beta", "Microsoft Graph Beta", "pwsh", "Microsoft.Graph.Beta", L("Graph's beta endpoints", "Graphs beta-endpoints"),
          "Microsoft 365"),
-    Tool("Microsoft.Entra", "Microsoft Entra", "pwsh", "Microsoft.Entra", "Entra ID-cmdlets, ersätter AzureAD",
+    Tool("Microsoft.Entra", "Microsoft Entra", "pwsh", "Microsoft.Entra", L("Entra ID cmdlets, replace AzureAD", "Entra ID-cmdlets, ersätter AzureAD"),
          "Microsoft 365"),
     Tool("ExchangeOnlineManagement", "Exchange Online", "pwsh", "ExchangeOnlineManagement",
          "Connect-ExchangeOnline + Purview (IPPS)", "Microsoft 365"),
-    Tool("MicrosoftTeams", "Microsoft Teams", "pwsh", "MicrosoftTeams", "Teams-policyer, telefoni, team",
+    Tool("MicrosoftTeams", "Microsoft Teams", "pwsh", "MicrosoftTeams", L("Teams policies, telephony, teams", "Teams-policyer, telefoni, team"),
          "Microsoft 365"),
-    Tool("PnP.PowerShell", "PnP PowerShell", "pwsh", "PnP.PowerShell", "SharePoint Online och OneDrive",
+    Tool("PnP.PowerShell", "PnP PowerShell", "pwsh", "PnP.PowerShell", L("SharePoint Online and OneDrive", "SharePoint Online och OneDrive"),
          "Microsoft 365"),
     Tool("Microsoft.PowerApps.Administration.PowerShell", "Power Platform admin", "pwsh",
-         "Microsoft.PowerApps.Administration.PowerShell", "miljöer, DLP, appar och flöden", "Microsoft 365"),
+         "Microsoft.PowerApps.Administration.PowerShell", L("environments, DLP, apps and flows", "miljöer, DLP, appar och flöden"), "Microsoft 365"),
     Tool("Microsoft.PowerApps.PowerShell", "Power Apps (maker)", "pwsh", "Microsoft.PowerApps.PowerShell",
-         "egna appar och flöden", "Microsoft 365"),
-    Tool("PartnerCenter", "Partner Center", "pwsh", "PartnerCenter", "CSP-kunder och licenser", "Microsoft 365"),
-    Tool("Az", "Az (hela)", "pwsh", "Az", "Azure PowerShell, alla tjänster (~100 moduler)", "Azure"),
-    Tool("Az.Accounts", "Az.Accounts", "pwsh", "Az.Accounts", "Connect-AzAccount, kontexter", "Azure"),
-    Tool("Az.Resources", "Az.Resources", "pwsh", "Az.Resources", "resursgrupper, RBAC, policy", "Azure"),
+         L("your own apps and flows", "egna appar och flöden"), "Microsoft 365"),
+    Tool("PartnerCenter", "Partner Center", "pwsh", "PartnerCenter", L("CSP customers and licenses", "CSP-kunder och licenser"), "Microsoft 365"),
+    Tool("Az", "Az (hela)", "pwsh", "Az", L("Azure PowerShell, every service (~100 modules)", "Azure PowerShell, alla tjänster (~100 moduler)"), "Azure"),
+    Tool("Az.Accounts", "Az.Accounts", "pwsh", "Az.Accounts", L("Connect-AzAccount, contexts", "Connect-AzAccount, kontexter"), "Azure"),
+    Tool("Az.Resources", "Az.Resources", "pwsh", "Az.Resources", L("resource groups, RBAC, policy", "resursgrupper, RBAC, policy"), "Azure"),
     Tool("Az.ResourceGraph", "Az.ResourceGraph", "pwsh", "Az.ResourceGraph", "Search-AzGraph", "Azure"),
-    Tool("ImportExcel", "ImportExcel", "pwsh", "ImportExcel", "Export-Excel utan Office", "Verktyg"),
-    Tool("PSScriptAnalyzer", "PSScriptAnalyzer", "pwsh", "PSScriptAnalyzer", "lint för dina skript", "Verktyg"),
-    Tool("Pester", "Pester", "pwsh", "Pester", "tester för skript och moduler", "Verktyg"),
+    Tool("ImportExcel", "ImportExcel", "pwsh", "ImportExcel", L("Export-Excel without Office", "Export-Excel utan Office"), "Verktyg"),
+    Tool("PSScriptAnalyzer", "PSScriptAnalyzer", "pwsh", "PSScriptAnalyzer", L("lint for your scripts", "lint för dina skript"), "Verktyg"),
+    Tool("Pester", "Pester", "pwsh", "Pester", L("tests for scripts and modules", "tester för skript och moduler"), "Verktyg"),
     Tool("Microsoft.PowerShell.SecretManagement", "SecretManagement", "pwsh",
-         "Microsoft.PowerShell.SecretManagement", "hemligheter utan klartext i skript", "Verktyg"),
+         "Microsoft.PowerShell.SecretManagement", L("secrets without plain text in scripts", "hemligheter utan klartext i skript"), "Verktyg"),
     Tool("Microsoft.PowerShell.SecretStore", "SecretStore", "pwsh", "Microsoft.PowerShell.SecretStore",
-         "lokalt valv för SecretManagement", "Verktyg"),
-    Tool("SqlServer", "SqlServer", "pwsh", "SqlServer", "Invoke-Sqlcmd och SQL-administration", "Verktyg"),
+         L("local vault for SecretManagement", "lokalt valv för SecretManagement"), "Verktyg"),
+    Tool("SqlServer", "SqlServer", "pwsh", "SqlServer", L("Invoke-Sqlcmd and SQL administration", "Invoke-Sqlcmd och SQL-administration"), "Verktyg"),
     Tool("Microsoft.WinGet.Client", "WinGet-modulen", "pwsh", "Microsoft.WinGet.Client",
-         "winget från PowerShell (gör uppa snabbare på Windows)", "Verktyg"),
+         L("winget from PowerShell (makes uppa faster on Windows)", "winget från PowerShell (gör uppa snabbare på Windows)"), "Verktyg"),
 ]
 TOOL = {t.key.lower(): t for t in CATALOG}
 TOOL.update({t.pkg.lower(): t for t in CATALOG})
@@ -1987,13 +2056,13 @@ BAS = ["powershell", "azure-cli", "Microsoft.Graph", "ExchangeOnlineManagement",
        "Az.Resources", "ImportExcel", "Microsoft.PowerShell.SecretManagement", "Microsoft.PowerShell.SecretStore",
        "PSScriptAnalyzer"]
 BUILTIN_PROFILES = {
-    "bas": ("grundpaket för M365/Azure-admin", BAS),
-    "m365": ("bas + allt för Microsoft 365", BAS + ["Microsoft.Graph.Beta", "Microsoft.Entra", "PnP.PowerShell",
+    "bas": (L("base bundle for M365/Azure admins", "grundpaket för M365/Azure-admin"), BAS),
+    "m365": (L("base + everything for Microsoft 365", "bas + allt för Microsoft 365"), BAS + ["Microsoft.Graph.Beta", "Microsoft.Entra", "PnP.PowerShell",
                                                     "Microsoft.PowerApps.Administration.PowerShell",
                                                     "Microsoft.PowerApps.PowerShell", "PartnerCenter", "m365",
                                                     "puppa"]),
-    "azure": ("bas + Azure fullt ut", BAS + ["Az", "Az.ResourceGraph", "resource-graph", "bicep", "azcopy", "azd"]),
-    "alla": ("allt i katalogen", [t.key for t in CATALOG]),
+    "azure": (L("base + all of Azure", "bas + Azure fullt ut"), BAS + ["Az", "Az.ResourceGraph", "resource-graph", "bicep", "azcopy", "azd"]),
+    "alla": (L("everything in the catalogue", "allt i katalogen"), [t.key for t in CATALOG]),
 }
 
 
@@ -2001,7 +2070,7 @@ def profiles():
     """Inbyggda + egna i ~/.uppa/config.json: {"profiles": {"mitt": ["Microsoft.Graph", "ImportExcel"]}}."""
     prof = dict(BUILTIN_PROFILES)
     for name, keys in (config().get("profiles") or {}).items():
-        prof[name.lower()] = ("eget paket", list(keys))
+        prof[name.lower()] = (L("own package", "eget paket"), list(keys))
     return prof
 
 
@@ -2011,7 +2080,7 @@ def tool_for(name):
         return t
     if name.startswith("pwsh:"):
         name = name[5:]
-    return Tool(name, name, "pwsh", name, "PowerShell-modul", "Övrigt")
+    return Tool(name, name, "pwsh", name, "PowerShell-modul", L("Other", "Övrigt"))
 
 
 PS_INV = r"""
@@ -2072,7 +2141,7 @@ def inventory(quiet=False):
 
     jobs = [f for f, ok in ((brew, have("brew")), (winget, IS_WIN and have("winget")), (pwsh, have("pwsh")),
                             (npm, have("npm")), (az, have("az")), (puppa, have("puppa"))) if ok]
-    with (nullcontext() if quiet or not ANIM else Spinner("Kikar i lådorna efter moduler och verktyg…")):
+    with (nullcontext() if quiet or not ANIM else Spinner(L("Peeking in the drawers for modules and tools…", "Kikar i lådorna efter moduler och verktyg…"))):
         with ThreadPoolExecutor(4) as ex:
             list(ex.map(lambda f: f(), jobs))
     return inv
@@ -2089,16 +2158,16 @@ def cmd_scan(a):
     inv = inventory()
     w = min(width(), 110)
     descw = w - 50
-    print(fit(section_head("CLI-VERKTYG", "", "", w)))
+    print(fit(section_head(L("CLI TOOLS", "CLI-VERKTYG"), "", "", w)))
     for t in [t for t in CATALOG if t.group == "CLI"]:
         v = installed(t, inv)
-        mark, ver = (green("✔"), v) if v else (dim("○"), dim("saknas"))
+        mark, ver = (green("✔"), v) if v else (dim("○"), dim(L("missing", "saknas")))
         print(fit(f"     {mark} {pad(t.label, 24)}{pad(ver, 14)}" + (dim(cut(t.desc, descw)) if descw > 12 else "")))
     known = {t.pkg for t in CATALOG}
     extra = [n for n in inv["brew"] if (MS_FORMULA.match(n) or MS_CASK.match(n)) and n not in known]
     extra += [n for n in inv["npm"] if MS_NPM.match(n) and n not in known]
     for n in extra:
-        print(fit(f"     {green('✔')} {pad(n, 24)}{pad(inv['brew'].get(n) or inv['npm'].get(n), 14)}{dim('utanför katalogen')}"))
+        print(fit(L(f"     {green('✔')} {pad(n, 24)}{pad(inv['brew'].get(n) or inv['npm'].get(n), 14)}{dim('outside the catalogue')}", f"     {green('✔')} {pad(n, 24)}{pad(inv['brew'].get(n) or inv['npm'].get(n), 14)}{dim('utanför katalogen')}")))
 
     rows = inv["rows"]
     roots = sorted([r for r in rows if not r.get("p")], key=lambda r: r["n"].lower())
@@ -2107,12 +2176,12 @@ def cmd_scan(a):
         if r.get("p"):
             subs.setdefault(r["p"], []).append(r)
     print()
-    print(fit(section_head("POWERSHELL-MODULER", f"{len(rows)} installerade · {len(roots)} huvudmoduler", "", w)))
+    print(fit(section_head(L("POWERSHELL MODULES", "POWERSHELL-MODULER"), L(f"{len(rows)} installed · {len(roots)} top-level modules", f"{len(rows)} installerade · {len(roots)} huvudmoduler"), "", w)))
     namew = max(14, min(max([len(r["n"]) for r in roots] + [14]), w - 30))
     restw = w - 7 - namew - 2 - 11
     for r in roots:
         n_sub = len(subs.get(r["n"], []))
-        extra_txt = f"+{n_sub} undermoduler" if n_sub else ""
+        extra_txt = L(f"+{n_sub} submodules", f"+{n_sub} undermoduler") if n_sub else ""
         line = f"     {green('●')} {pad(cut(r['n'], namew), namew + 2)}{pad(r['v'], 11)}"
         if restw >= 18:
             line += pad(dim(extra_txt), 18)
@@ -2123,26 +2192,26 @@ def cmd_scan(a):
             for s in sorted(subs.get(r["n"], []), key=lambda x: x["n"]):
                 print(fit(dim(f"         └ {pad(s['n'], namew)}{s['v']}")))
     if subs and not a.all:
-        print(dim("     undermoduler visas med  uppa scan -a"))
+        print(dim(L("     submodules are shown with  uppa scan -a", "     undermoduler visas med  uppa scan -a")))
 
     print()
-    print(fit(section_head("GRUNDPAKET", "", "", w)))
+    print(fit(section_head(L("BUNDLES", "GRUNDPAKET"), "", "", w)))
     bas_missing = []
     for name, (desc, keys) in profiles().items():
         tools = [tool_for(k) for k in keys]
         missing = [t for t in tools if not installed(t, inv)]
         if name == "bas":
             bas_missing = missing
-        state = green("✔ komplett") if not missing else yellow(f"{len(tools) - len(missing)}/{len(tools)}")
+        state = green(L("✔ complete", "✔ komplett")) if not missing else yellow(f"{len(tools) - len(missing)}/{len(tools)}")
         print(fit(f"     {pad(bold(name), 8)} {pad(state, 12)} {dim(desc)}"))
         if missing:
-            print(fit(dim(f"                   saknas: {', '.join(t.label for t in missing)}")))
+            print(fit(dim(L(f"                   missing: {', '.join(t.label for t in missing)}", f"                   saknas: {', '.join(t.label for t in missing)}"))))
             print(fit(dim(f"                   →  uppa install {name}")))
     print()
     if bas_missing:
-        say(f"Du saknar {len(bas_missing)} saker från grundpaketet. Kör uppa install bas – det går fort.", "worry")
+        say(L(f"You're missing {len(bas_missing)} things from the base bundle. Run uppa install bas – it's quick.", f"Du saknar {len(bas_missing)} saker från grundpaketet. Kör uppa install bas – det går fort."), "worry")
     else:
-        say("Grundpaketet är komplett. Du är redo för vad som helst. Nästan.", "proud")
+        say(L("The base bundle is complete. You're ready for anything. Almost.", "Grundpaketet är komplett. Du är redo för vad som helst. Nästan."), "proud")
     print()
 
 
@@ -2196,7 +2265,7 @@ def install_tasks(tools):
 
 def verify_ps_names(tools):
     """Okända modulnamn kontrolleras mot PowerShell Gallery innan något körs."""
-    unknown = [t for t in tools if t.kind == "pwsh" and t.group == "Övrigt"]
+    unknown = [t for t in tools if t.kind == "pwsh" and t.group == L("Other", "Övrigt")]
     if not unknown or not have("pwsh"):
         return tools
     names = ",".join("'" + t.pkg.replace("'", "''") + "'" for t in unknown)
@@ -2205,7 +2274,7 @@ def verify_ps_names(tools):
     found = {n.strip().lower() for n in out.split()}
     for t in unknown:
         if t.pkg.lower() not in found:
-            print(f"  {red('✘')} {t.pkg} finns inte i PowerShell Gallery, hoppar över")
+            print(L(f"  {red('✘')} {t.pkg} isn't in the PowerShell Gallery, skipping", f"  {red('✘')} {t.pkg} finns inte i PowerShell Gallery, hoppar över"))
     return [t for t in tools if not (t in unknown and t.pkg.lower() not in found)]
 
 
@@ -2215,7 +2284,7 @@ def cmd_install(a):
     prof = profiles()
     if not a.names:
         if not sys.stdin.isatty():
-            sys.exit("  ange ett paket (" + ", ".join(prof) + ") eller modulnamn")
+            sys.exit(L("  give a bundle (", "  ange ett paket (") + ", ".join(prof) + L(") or module name", ") eller modulnamn"))
         rows, groups = [], {}
         for t in CATALOG:
             groups.setdefault(t.group, []).append(t)
@@ -2226,21 +2295,21 @@ def cmd_install(a):
 
         def line(t):
             v = installed(t, inv)
-            return f"{pad(t.label, 30)}{pad(dim(v) if v else yellow('saknas'), 16)}{dim(cut(t.desc, width() - 56))}"
+            return L(f"{pad(t.label, 30)}{pad(dim(v) if v else yellow('missing'), 16)}{dim(cut(t.desc, width() - 56))}", f"{pad(t.label, 30)}{pad(dim(v) if v else yellow('saknas'), 16)}{dim(cut(t.desc, width() - 56))}")
 
         def prof_key(name):
             ids = {id(tool_for(k)) for k in prof[name][1] if missing(tool_for(k))}
             return lambda chosen, cur: ids
 
-        say("Kryssa i det du vill ha. b, m, z och l väljer ett helt paket åt dig.", "happy")
+        say(L("Tick what you want. b, m, z and l pick a whole bundle for you.", "Kryssa i det du vill ha. b, m, z och l väljer ett helt paket åt dig."), "happy")
         print()
         bas_ids = {id(tool_for(k)) for k in prof["bas"][1] if missing(tool_for(k))}
         targets = pick(rows, bas_ids, "Installera", line, can_pick=missing,
                        hotkeys={"b": prof_key("bas"), "m": prof_key("m365"), "z": prof_key("azure"),
                                 "l": prof_key("alla")},
-                       help_extra=" · b bas · m m365 · z azure · l alla")
+                       help_extra=L(" · b base · m m365 · z azure · l all", " · b bas · m m365 · z azure · l alla"))
         if not targets:
-            print(dim("  Inget valt.\n"))
+            print(dim(L("  Nothing selected.\n", "  Inget valt.\n")))
             return 0
     else:
         targets = []
@@ -2253,21 +2322,21 @@ def cmd_install(a):
     have_ = [t for t in targets if installed(t, inv)]
     todo = verify_ps_names([t for t in targets if not installed(t, inv)])
     if have_:
-        print(f"  {green('✔')} redan installerat: {dim(cut(', '.join(t.label for t in have_), width() * 2))}")
+        print(L(f"  {green('✔')} already installed: {dim(cut(', '.join(t.label for t in have_), width() * 2))}", f"  {green('✔')} redan installerat: {dim(cut(', '.join(t.label for t in have_), width() * 2))}"))
     if not todo:
         print()
-        say("Allt det där har du redan. Jag gillar din stil.", "proud")
+        say(L("You already have all of that. I like your style.", "Allt det där har du redan. Jag gillar din stil."), "proud")
         print()
         return 0
     print()
     tasks = install_tasks(todo)
     print_plan(tasks)
     if a.dry_run:
-        say("Torrkörning: inget kördes. Så här skulle det se ut.", "happy")
+        say(L("Dry run: nothing ran. This is what it would look like.", "Torrkörning: inget kördes. Så här skulle det se ut."), "happy")
         print()
         return 0
-    if not a.yes and not ask("Installera?", True):
-        say("Okej, inget ändrat.", "happy")
+    if not a.yes and not ask(L("Install?", "Installera?"), True):
+        say(L("Okay, nothing changed.", "Okej, inget ändrat."), "happy")
         print()
         return 1
     logpath = run_plan(tasks, a.jobs)
@@ -2326,16 +2395,16 @@ def logout_plan():
             accts = sorted({(c.get("Account") or {}).get("Id", "") for c in (data.get("Contexts") or {}).values()} - {""})
         except Exception:
             accts = []
-        plan.append({"label": "Az PowerShell", "who": ", ".join(accts) + (f" ({len(data.get('Contexts', {}))} kontexter)" if accts else ""),
+        plan.append({"label": "Az PowerShell", "who": ", ".join(accts) + (L(f" ({len(data.get('Contexts', {}))} contexts)", f" ({len(data.get('Contexts', {}))} kontexter)") if accts else ""),
                      "steps": [("ps", "Import-Module Az.Accounts; Clear-AzContext -Scope CurrentUser -Force")]})
     rec = HOME / ".mg" / "mg.authrecord.json"
     if rec.exists() or have("pwsh"):
         who = ""
         if rec.exists():
             try:
-                who = json.loads(rec.read_text(encoding="utf-8")).get("username", "") or "sparad inloggning"
+                who = json.loads(rec.read_text(encoding="utf-8")).get("username", "") or L("saved sign-in", "sparad inloggning")
             except Exception:
-                who = "sparad inloggning"
+                who = L("saved sign-in", "sparad inloggning")
         broker = " -SignOutFromBroker" if IS_WIN else ""
         plan.append({"label": "Microsoft Graph / Entra", "who": who,
                      "steps": [("ps", "if (Get-Module -ListAvailable Microsoft.Graph.Authentication) { "
@@ -2352,7 +2421,7 @@ def logout_plan():
                                ("pnpcache", pnp)]})
     cache = identity_cache()
     if cache.exists():
-        plan.append({"label": "Delad token-cache (Az/Graph)", "who": "finns",
+        plan.append({"label": L("Shared token cache (Az/Graph)", "Delad token-cache (Az/Graph)"), "who": "finns",
                      "steps": [("rm", cache)]})
     return plan
 
@@ -2389,33 +2458,33 @@ def cmd_logout(a):
         print("\n".join(LOGOUT_PS_LINES))
         return 0
     banner()
-    with (nullcontext() if not ANIM else Spinner("Kollar vem du är inloggad som…")):
+    with (nullcontext() if not ANIM else Spinner(L("Checking who you're signed in as…", "Kollar vem du är inloggad som…"))):
         plan = logout_plan()
     if not plan:
-        say("Jag hittar inget att logga ut från. Du är redan utloggad.", "happy")
+        say(L("I can't find anything to sign out of. You're already signed out.", "Jag hittar inget att logga ut från. Du är redan utloggad."), "happy")
         return 0
     W = min(width(), 104)
-    print(fit(section_head("SPARADE INLOGGNINGAR", "rensas så att alla nya fönster kräver ny inloggning", "", W)))
+    print(fit(section_head(L("SAVED SIGN-INS", "SPARADE INLOGGNINGAR"), L("cleared so every new window needs a new sign-in", "rensas så att alla nya fönster kräver ny inloggning"), "", W)))
     lw = min(max(len(e["label"]) for e in plan) + 2, max(16, W // 2))
     for e in plan:
-        state = dim(e["who"]) if e["who"] else dim("ingen aktiv inloggning")
+        state = dim(e["who"]) if e["who"] else dim(L("no active sign-in", "ingen aktiv inloggning"))
         print(fit(f"     {yellow('●') if e['who'] else dim('○')} {pad(cut(e['label'], lw - 2), lw)}{state}"))
     print()
-    print(fit(dim("     Exchange Online, Teams, Partner Center och Power Apps sparar bara i det öppna fönstret.")))
-    print(fit(dim("     Logga ut dem där med:  ") + bold("uppa logout --ps | iex")))
+    print(fit(dim(L("     Exchange Online, Teams, Partner Center and Power Apps only keep it in the open window.", "     Exchange Online, Teams, Partner Center och Power Apps sparar bara i det öppna fönstret."))))
+    print(fit(dim(L("     Sign them out there with:  ", "     Logga ut dem där med:  ")) + bold("uppa logout --ps | iex")))
     print()
     if a.dry_run:
         for e in plan:
             for kind, arg in e["steps"]:
-                desc = show_cmd(arg) if kind == "cmd" else (f"pwsh: {arg}" if kind == "ps" else f"ta bort {arg}"
-                                                           if kind == "rm" else f"töm PnP-cachen i {arg}")
+                desc = show_cmd(arg) if kind == "cmd" else (f"pwsh: {arg}" if kind == "ps" else L(f"remove {arg}", f"ta bort {arg}")
+                                                           if kind == "rm" else L(f"empty the PnP cache in {arg}", f"töm PnP-cachen i {arg}"))
                 print(fit(dim(f"     {e['label']}: {desc}")))
         print()
-        say("Torrkörning: inget kördes. Så här skulle det se ut.", "happy")
+        say(L("Dry run: nothing ran. This is what it would look like.", "Torrkörning: inget kördes. Så här skulle det se ut."), "happy")
         print()
         return 0
-    if not a.yes and not ask("Logga ut från allt ovan?", False):
-        say("Okej, inget ändrat.", "happy")
+    if not a.yes and not ask(L("Sign out of everything above?", "Logga ut från allt ovan?"), False):
+        say(L("Okay, nothing changed.", "Okej, inget ändrat."), "happy")
         print()
         return 1
     failed = []
@@ -2426,9 +2495,9 @@ def cmd_logout(a):
             failed.append(e["label"])
     print()
     if failed:
-        say(f"Det gick inte hela vägen: {', '.join(failed)} krånglade. Prova igen, eller logga ut manuellt.", "sad")
+        say(L(f"It didn't go all the way: {', '.join(failed)} acted up. Try again, or sign out manually.", f"Det gick inte hela vägen: {', '.join(failed)} krånglade. Prova igen, eller logga ut manuellt."), "sad")
     else:
-        say("Utloggad från allt. Nästa Connect-… frågar efter inloggning igen. I öppna pwsh-fönster: uppa logout --ps | iex", "proud")
+        say(L("Signed out of everything. The next Connect-… asks you to sign in again. In open pwsh windows: uppa logout --ps | iex", "Utloggad från allt. Nästa Connect-… frågar efter inloggning igen. I öppna pwsh-fönster: uppa logout --ps | iex"), "proud")
     print()
     return 1 if failed else 0
 
@@ -2456,7 +2525,7 @@ def pause():
     if sys.stdin.isatty():
         try:
             print()
-            input(dim("   enter = tillbaka till menyn "))
+            input(dim(L("   enter = back to the menu ", "   enter = tillbaka till menyn ")))
         except (EOFError, KeyboardInterrupt):
             print()
 
@@ -2508,7 +2577,7 @@ def choose(rows, title="", msg="", mood="happy", sub="", status=None, start=None
         top = min(max(top, pos - room + 1), pos)
         top = max(0, min(top, max(0, len(rows) - room)))
         if top > 0:
-            lines.append(dim("     ↑ fler"))
+            lines.append(dim(L("     ↑ more", "     ↑ fler")))
         for k in range(top, min(len(rows), top + room)):
             r = rows[k]
             if isinstance(r, tuple):
@@ -2526,9 +2595,9 @@ def choose(rows, title="", msg="", mood="happy", sub="", status=None, start=None
                     line += dim(r["hint"])
             lines.append(line)
         if top + room < len(rows):
-            lines.append(dim("     ↓ fler"))
+            lines.append(dim(L("     ↓ more", "     ↓ fler")))
         lines.append("")
-        help_ = (footer or "↑/↓ · enter · siffra väljer · q tillbaka") if w >= 50 else "↑↓ enter · q"
+        help_ = (footer or L("↑/↓ · enter · number picks · q back", "↑/↓ · enter · siffra väljer · q tillbaka")) if w >= 50 else "↑↓ enter · q"
         lines.append(dim("   " + help_))
         live.draw(lines)
 
@@ -2566,7 +2635,7 @@ def choose(rows, title="", msg="", mood="happy", sub="", status=None, start=None
     return choice
 
 
-SHORT = {"self": "Uppa", "brew": "brew", "winget": "winget", "pwsh": "PowerShell", "az": "az-tillägg",
+SHORT = {"self": "Uppa", "brew": "brew", "winget": "winget", "pwsh": "PowerShell", "az": L("az extensions", "az-tillägg"),
          "npm": "npm", "dotnet": ".NET", "puppa": "Puppa"}
 
 
@@ -2588,7 +2657,7 @@ def status_lines(cache):
             parts.append(yellow("● ") + SHORT.get(s.key, s.key) + " " + yellow(str(n)))
         else:
             parts.append(green("● ") + dim(SHORT.get(s.key, s.key)))
-    head = f"  {dim('Senast kollat')} {bold(ago(time.time() - cache.get('time', 0)))}"
+    head = L(f"  {dim('Last checked')} {bold(ago(time.time() - cache.get('time', 0)))}", f"  {dim('Senast kollat')} {bold(ago(time.time() - cache.get('time', 0)))}")
     lines, cur = [head], "  "
     for p_ in parts:
         if vlen(cur) + vlen(p_) + 2 > w - 2 and cur.strip():
@@ -2616,7 +2685,7 @@ def menu_update_self(a):
     new = file_version(me)
     if new and new != VERSION:
         print()
-        say(f"Startar om som uppa {new}…", "proud")
+        say(L(f"Restarting as uppa {new}…", f"Startar om som uppa {new}…"), "proud")
         if sys.stdin.isatty():
             pause()
         os.execv(sys.executable, [sys.executable, me])
@@ -2627,15 +2696,15 @@ def menu_update_puppa(a, item=None):
     cur = item.current if item else None
     lat = item.latest if item else None
     if item and not item.outdated:
-        say(f"Puppa {cur} är redan senaste versionen. Vill du ändå installera om den?", "happy")
-        if not ask("Installera om Puppa?", False):
-            say("Okej, inget ändrat.", "happy")
+        say(L(f"Puppa {cur} is already the latest version. Reinstall it anyway?", f"Puppa {cur} är redan senaste versionen. Vill du ändå installera om den?"), "happy")
+        if not ask(L("Reinstall Puppa?", "Installera om Puppa?"), False):
+            say(L("Okay, nothing changed.", "Okej, inget ändrat."), "happy")
             return
     task = Task("Puppa" + (f" {cur} → {lat}" if item and item.outdated else ""), sibling_installer("puppa"),
                 "puppa", items=[item or Item("puppa", "puppa", cur or "?", lat or "?", label="Puppa")])
     print_plan([task])
-    if not ask("Uppdatera Puppa?", True):
-        say("Okej, inget ändrat.", "happy")
+    if not ask(L("Update Puppa?", "Uppdatera Puppa?"), True):
+        say(L("Okay, nothing changed.", "Okej, inget ändrat."), "happy")
         return
     logpath = run_plan([task], 1)
     summarize([task], logpath)
@@ -2652,20 +2721,20 @@ def greeting(cache):
     n = len(outd)
     m = len([i for i in outd if i.current and i.latest != "?" and major_bump(i.current, i.latest)])
     me = next((i for i in outd if i.source == "self"), None)
-    hi = "Hej! Jag är Uppa."
+    hi = L("Hi! I'm Uppa.", "Hej! Jag är Uppa.")
     if not cache.get("sources"):
-        return f"{hi} Jag håller dina PowerShell- och Microsoft-verktyg fräscha. Ska vi skanna vad du har?", "worry"
+        return L(f"{hi} I keep your PowerShell and Microsoft tools fresh. Shall we scan what you have?", f"{hi} Jag håller dina PowerShell- och Microsoft-verktyg fräscha. Ska vi skanna vad du har?"), "worry"
     if not have("pwsh"):
-        return f"{hi} PowerShell 7 saknas – ska jag installera grundpaketet åt dig?", "worry"
+        return L(f"{hi} PowerShell 7 is missing – shall I install the base bundle for you?", f"{hi} PowerShell 7 saknas – ska jag installera grundpaketet åt dig?"), "worry"
     if me:
-        return f"{hi} Det finns en ny version av mig ({me.latest}). Ska vi uppa mig – och resten – nu?", "wow"
+        return L(f"{hi} There's a new version of me ({me.latest}). Shall we update me – and the rest – now?", f"{hi} Det finns en ny version av mig ({me.latest}). Ska vi uppa mig – och resten – nu?"), "wow"
     if n == 1:
-        return f"{hi} Jag hittade 1 sak som kan uppdateras. Ska jag uppa den?", "happy"
+        return L(f"{hi} I found 1 thing that can be updated. Shall I update it?", f"{hi} Jag hittade 1 sak som kan uppdateras. Ska jag uppa den?"), "happy"
     if n and m:
-        return f"{hi} Jag hittade {n} saker som kan uppdateras, varav {m} nya huvudversioner. Ska vi uppa dem?", "happy"
+        return L(f"{hi} I found {n} things that can be updated, {m} of them new major versions. Shall we update them?", f"{hi} Jag hittade {n} saker som kan uppdateras, varav {m} nya huvudversioner. Ska vi uppa dem?"), "happy"
     if n:
-        return f"{hi} Jag hittade {n} saker som kan uppdateras. Ska vi uppa dem?", "happy"
-    return f"{hi} Allt är redan uppat – jag har inget att göra. Underbart.", "proud"
+        return L(f"{hi} I found {n} things that can be updated. Shall we update them?", f"{hi} Jag hittade {n} saker som kan uppdateras. Ska vi uppa dem?"), "happy"
+    return L(f"{hi} Everything is already up to date – nothing for me to do. Wonderful.", f"{hi} Allt är redan uppat – jag har inget att göra. Underbart."), "proud"
 
 
 def menu(a):
@@ -2688,36 +2757,41 @@ def menu(a):
         me = next((i for i in items if i.source == "self"), None)
         pu = next((i for i in items if i.source == "puppa"), None)
         self_new = me.latest if me and newer(me.latest, VERSION) else None    # jämför med koden som körs nu
-        self_hint = f"{VERSION} → {self_new} finns" if self_new else f"{VERSION} · senaste version"
-        puppa_hint = (f"{pu.current} → {pu.latest} finns" if pu and pu.outdated
-                      else (f"{pu.current} · senaste version" if pu else "kör Puppas installer igen"))
-        rows = [dict(label="Uppdatera allt", hint=f"{n} st" + (f" · {m} nya huvudversioner" if m else ""),
+        self_hint = L(f"{VERSION} → {self_new} available", f"{VERSION} → {self_new} finns") if self_new else L(f"{VERSION} · latest version", f"{VERSION} · senaste version")
+        puppa_hint = (L(f"{pu.current} → {pu.latest} available", f"{pu.current} → {pu.latest} finns") if pu and pu.outdated
+                      else (L(f"{pu.current} · latest version", f"{pu.current} · senaste version") if pu else L("run Puppa's installer again", "kör Puppas installer igen")))
+        rows = [dict(label=L("Update all", "Uppdatera allt"), hint=f"{n} st" + (L(f" · {m} new major versions", f" · {m} nya huvudversioner") if m else ""),
                      value="update"),
-                dict(label="Välj själv…", hint="kryssa i det som ska uppdateras", value="select"),
-                dict(label="Visa allt inaktuellt", hint="version för version", value="status"),
-                dict(label="Vad är nytt?", hint="release notes innan du uppdaterar", value="changes"),
-                dict(label="Skanna installerat", hint="moduler, verktyg och grundpaket", value="scan"),
-                dict(label="Installera grundpaket…", hint="bas · m365 · azure", value="install"),
-                dict(label="Installera Puppa", hint="PowerShell-uppgifter med några knapptryck", value="puppa"),
-                dict(label="Uppdatera Puppa", hint=puppa_hint, value="puppa-update"),
-                dict(label="Uppdatera Uppa", hint=self_hint, value="self"),
-                dict(label="Doctor", hint="inloggningar och hälsokoll", value="doctor"),
-                dict(label="Logga ut från allt", hint="Graph · Az · PnP · az · m365", value="logout", key="u"),
-                dict(label="Skanna om", hint="hämta färska versioner", value="refresh", key="r"),
-                dict(label="Avsluta", value="quit", key="q")]
+                dict(label=L("Pick yourself…", "Välj själv…"), hint=L("tick what to update", "kryssa i det som ska uppdateras"), value="select"),
+                dict(label=L("Show everything outdated", "Visa allt inaktuellt"), hint=L("version by version", "version för version"), value="status"),
+                dict(label=L("What's new?", "Vad är nytt?"), hint=L("release notes before you update", "release notes innan du uppdaterar"), value="changes"),
+                dict(label=L("Scan what's installed", "Skanna installerat"), hint=L("modules, tools and bundles", "moduler, verktyg och grundpaket"), value="scan"),
+                dict(label=L("Install a bundle…", "Installera grundpaket…"), hint=L("base · m365 · azure", "bas · m365 · azure"), value="install"),
+                dict(label=L("Install Puppa", "Installera Puppa"), hint=L("PowerShell tasks in a few keystrokes", "PowerShell-uppgifter med några knapptryck"), value="puppa"),
+                dict(label=L("Update Puppa", "Uppdatera Puppa"), hint=puppa_hint, value="puppa-update"),
+                dict(label=L("Update Uppa", "Uppdatera Uppa"), hint=self_hint, value="self"),
+                dict(label="Doctor", hint=L("sign-ins and health check", "inloggningar och hälsokoll"), value="doctor"),
+                dict(label=L("Sign out of everything", "Logga ut från allt"), hint="Graph · Az · PnP · az · m365", value="logout", key="u"),
+                dict(label=L("Rescan", "Skanna om"), hint=L("fetch fresh versions", "hämta färska versioner"), value="refresh", key="r"),
+                dict(label="Language: " + ("English" if LANG == "en" else "Svenska"),
+                     hint=L("switch to Svenska – for the whole troupe", "byt till English – för hela truppen"), value="lang", key="s"),
+                dict(label=L("Quit", "Avsluta"), value="quit", key="q")]
         if not n:
             rows = [r for r in rows if r["value"] not in ("update", "select", "status", "changes")]
         rows = [r for r in rows if r["value"] != ("puppa" if have("puppa") else "puppa-update")]
         v = choose(rows, msg=msg, mood=mood, status=lambda: status_lines(cache), start=last,
-                   footer="↑/↓ · enter · siffra väljer · q avslutar" if width() >= 50 else None,
+                   footer=L("↑/↓ · enter · number picks · q quits", "↑/↓ · enter · siffra väljer · q avslutar") if width() >= 50 else None,
                    sub=f"uppa {VERSION}", screen=True)
         last = v
         if v in (None, "quit"):
             print()
-            say(random.choice(["Hej då!", "Vi ses!", "Hej då! Håll modulerna fräscha.",
-                               "Hej då! Jag håller koll på versionerna så länge."]), "happy")
+            say(random.choice([L("Bye!", "Hej då!"), L("See you!", "Vi ses!"), L("Bye! Keep the modules fresh.", "Hej då! Håll modulerna fräscha."),
+                               L("Bye! I'll keep an eye on the versions meanwhile.", "Hej då! Jag håller koll på versionerna så länge.")]), "happy")
             print()
             return
+        if v == "lang":             # restart so every text is in the new language
+            set_lang("sv" if LANG == "en" else "en")
+            os.execv(sys.executable, [sys.executable, os.path.realpath(__file__)] + sys.argv[1:])
         print()
         a.names, a.all, a.ps = [], False, False
         if v == "update":
@@ -2727,7 +2801,7 @@ def menu(a):
             if chosen:
                 do_update(chosen, a)
             else:
-                say("Okej, inget valt.", "happy")
+                say(L("Okay, nothing selected.", "Okej, inget valt."), "happy")
         elif v == "status":
             print_status(cache)
         elif v == "changes":
@@ -2740,7 +2814,7 @@ def menu(a):
             a.names = ["puppa"]
             cmd_install(a)
             if have("puppa"):
-                say("Puppa är installerad. Starta den med puppa – och uppdatera den härifrån framöver.", "proud")
+                say(L("Puppa is installed. Start it with puppa – and update it from here from now on.", "Puppa är installerad. Starta den med puppa – och uppdatera den härifrån framöver."), "proud")
         elif v == "puppa-update":
             menu_update_puppa(a, pu)
         elif v == "self":
@@ -2751,60 +2825,63 @@ def menu(a):
             cmd_logout(a)
         elif v == "refresh":
             cache = scan()
-            say("Färska versioner hämtade.", "proud")
+            say(L("Fresh versions fetched.", "Färska versioner hämtade."), "proud")
         DIRTY = True
 
 
 def main(argv=None):
     import argparse
     global ANIM
-    p = argparse.ArgumentParser(prog="uppa", description="uppa – håll PowerShell- och Microsoft-CLI-verktygen uppdaterade.")
+    p = argparse.ArgumentParser(prog="uppa", description=L("uppa – keep your PowerShell and Microsoft CLI tools up to date.", "uppa – håll PowerShell- och Microsoft-CLI-verktygen uppdaterade."))
     p.add_argument("--version", action="version", version="uppa " + VERSION)
     p.add_argument("--no-anim", action="store_true")
     sub = p.add_subparsers(dest="cmd")
 
     def common(sp):
-        sp.add_argument("-n", "--dry-run", action="store_true", help="visa planen, ändra inget")
-        sp.add_argument("-y", "--yes", action="store_true", help="fråga inte")
+        sp.add_argument("-n", "--dry-run", action="store_true", help=L("show the plan, change nothing", "visa planen, ändra inget"))
+        sp.add_argument("-y", "--yes", action="store_true", help=L("don't ask", "fråga inte"))
         sp.add_argument("-j", "--jobs", type=int, default=int(os.environ.get("UPPA_JOBS", 4)))
-        sp.add_argument("--refresh", action="store_true", help="skanna om i stället för att använda cache")
+        sp.add_argument("--refresh", action="store_true", help=L("rescan instead of using the cache", "skanna om i stället för att använda cache"))
         sp.add_argument("--no-anim", action="store_true", help=argparse.SUPPRESS)
         return sp
 
-    s = common(sub.add_parser("status", help="vad är inaktuellt"))
+    s = common(sub.add_parser("status", help=L("what is outdated", "vad är inaktuellt")))
     s.add_argument("names", nargs="*")
-    s.add_argument("-a", "--all", action="store_true", help="visa även det som är aktuellt")
+    s.add_argument("-a", "--all", action="store_true", help=L("also show what is up to date", "visa även det som är aktuellt"))
     s.add_argument("--quiet", action="store_true")
-    u = common(sub.add_parser("update", help="uppdatera"))
+    u = common(sub.add_parser("update", help=L("update", "uppdatera")))
     u.add_argument("names", nargs="*")
-    u.add_argument("--changes", action="store_true", help="visa release notes först")
+    u.add_argument("--changes", action="store_true", help=L("show release notes first", "visa release notes först"))
     u.add_argument("--unattended", action="store_true", help=argparse.SUPPRESS)
-    common(sub.add_parser("select", help="checklista"))
+    common(sub.add_parser("select", help=L("checklist", "checklista")))
     ch = common(sub.add_parser("changes", help="release notes"))
     ch.add_argument("names", nargs="*")
-    common(sub.add_parser("doctor", help="hälsokoll"))
-    sn = common(sub.add_parser("scan", help="vilka moduler och verktyg finns installerade + grundpaket"))
-    sn.add_argument("-a", "--all", action="store_true", help="visa även undermoduler")
-    ins = common(sub.add_parser("install", help="installera grundpaket (bas/m365/azure/alla) eller moduler"))
+    common(sub.add_parser("doctor", help=L("health check", "hälsokoll")))
+    sn = common(sub.add_parser("scan", help=L("which modules and tools are installed + bundles", "vilka moduler och verktyg finns installerade + grundpaket")))
+    sn.add_argument("-a", "--all", action="store_true", help=L("also show submodules", "visa även undermoduler"))
+    ins = common(sub.add_parser("install", help=L("install a bundle (bas/m365/azure/alla) or modules", "installera grundpaket (bas/m365/azure/alla) eller moduler")))
     ins.add_argument("names", nargs="*")
-    sub.add_parser("hej", help="säg hej till Uppa")
-    common(sub.add_parser("self-update", help="uppdatera uppa själv"))
-    lo = common(sub.add_parser("logout", help="logga ut från Graph, Az, PnP, az, m365 … (sparade inloggningar)"))
-    lo.add_argument("--ps", action="store_true", help="skriv ut PowerShell som loggar ut det öppna fönstret: uppa logout --ps | iex")
-    cl = common(sub.add_parser("clean", help="städa gamla versioner"))
+    sub.add_parser("hello", aliases=["hej"], help=L("say hello to Uppa", "säg hej till Uppa"))
+    common(sub.add_parser("self-update", help=L("update uppa itself", "uppdatera uppa själv")))
+    lo = common(sub.add_parser("logout", help=L("sign out of Graph, Az, PnP, az, m365 … (saved sign-ins)", "logga ut från Graph, Az, PnP, az, m365 … (sparade inloggningar)")))
+    lo.add_argument("--ps", action="store_true", help=L("print PowerShell that signs out the open window: uppa logout --ps | iex", "skriv ut PowerShell som loggar ut det öppna fönstret: uppa logout --ps | iex"))
+    cl = common(sub.add_parser("clean", help=L("clean up old versions", "städa gamla versioner")))
     cl.add_argument("what", nargs="?", default="pwsh")
-    ig = sub.add_parser("ignore", help="ignorera källa:namn")
+    ig = sub.add_parser("ignore", help=L("ignore source:name", "ignorera källa:namn"))
     ig.add_argument("keys", nargs="*")
     ug = sub.add_parser("unignore")
     ug.add_argument("keys", nargs="*")
-    nd = sub.add_parser("nudge", help="påminnelse i terminalen")
+    nd = sub.add_parser("nudge", help=L("reminder in the terminal", "påminnelse i terminalen"))
     nd.add_argument("action", nargs="?", default="status", choices=["enable", "disable", "status", "snooze"])
     nd.add_argument("arg", nargs="?")
-    sc = sub.add_parser("schedule", help="automatisk uppdatering")
+    sc = sub.add_parser("schedule", help=L("automatic update", "automatisk uppdatering"))
     sc.add_argument("action", nargs="?", default="status", choices=["enable", "disable", "status"])
     sc.add_argument("--daily", action="store_true")
     sc.add_argument("--at", default="09:00")
     sc.add_argument("-n", "--dry-run", action="store_true")
+    lg = sub.add_parser("lang", aliases=["språk", "sprak"], help=L("show or set the language (en, sv) for the whole troupe",
+                                                                   "visa eller välj språk (en, sv) för hela truppen"))
+    lg.add_argument("val", nargs="?", default="")
     sub.add_parser("_nudge")
     sub.add_parser("_refresh")
 
@@ -2829,6 +2906,13 @@ def main(argv=None):
 
     signal.signal(signal.SIGINT, _sigint)
 
+    if a.cmd in ("lang", "språk", "sprak"):
+        if a.val[:2].lower() in ("en", "sv"):
+            set_lang(a.val[:2].lower())
+            print(L("  Language: English (for the whole troupe)", "  Språk: svenska (för hela truppen)"))
+        else:
+            print(L("  Language: English · change with: uppa lang sv", "  Språk: svenska · byt med: uppa lang en"))
+        return
     if a.cmd == "_nudge":
         return nudge_hook()
     if a.cmd == "_refresh":
@@ -2860,18 +2944,18 @@ def main(argv=None):
         if a.names:
             items = match(items, a.names)
             if not items:
-                sys.exit(f"  hittade inget som matchar {' '.join(a.names)}  (prova uppa status -a)")
+                sys.exit(L(f"  found nothing matching {' '.join(a.names)}  (try uppa status -a)", f"  hittade inget som matchar {' '.join(a.names)}  (prova uppa status -a)"))
         if a.changes:
             show_changes(items)
         sys.exit(do_update(items, a, a.unattended))
     if a.cmd == "select":
         banner()
         if not sys.stdin.isatty():
-            sys.exit("  select behöver en riktig terminal")
+            sys.exit(L("  select needs a real terminal", "  select behöver en riktig terminal"))
         chosen = checklist(items_from(get_cache(a.refresh)))
         if chosen:
             sys.exit(do_update(chosen, a))
-        print(dim("  Inget valt.\n"))
+        print(dim(L("  Nothing selected.\n", "  Inget valt.\n")))
         return
     if a.cmd == "changes":
         banner()
@@ -2888,9 +2972,9 @@ def main(argv=None):
         sys.exit(cmd_logout(a))
     if a.cmd == "self-update":
         sys.exit(cmd_self_update(a))
-    if a.cmd == "hej":
+    if a.cmd in ("hello", "hej"):
         print()
-        say(random.choice(JOKES), random.choice(["happy", "proud", "wow", "left"]))
+        say(random.choice(L(JOKES_EN, JOKES_SV)), random.choice(["happy", "proud", "wow", "left"]))
         print()
         return
     if a.cmd == "clean":

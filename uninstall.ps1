@@ -14,8 +14,12 @@ $Dir = Join-Path $HOME '.uppa'
 $Bin = Join-Path $Dir 'bin'
 $Shim = if ($OnWindows) { Join-Path $Bin 'uppa.cmd' } else { Join-Path $HOME '.local/bin/uppa' }
 
+# Language: TRUPPA_LANG, else ~/.truppa/config.json (shared by the whole troupe), else English
+$TL = $env:TRUPPA_LANG
+if (-not $TL) { try { $TL = (Get-Content -Raw -LiteralPath (Join-Path $HOME '.truppa/config.json') -ErrorAction Stop | ConvertFrom-Json).lang } catch { } }
+function T([string]$en, [string]$sv) { if ("$TL" -like 'sv*') { $sv } else { $en } }
 function Say($m) { Write-Host "  ▲ $m" -ForegroundColor Green }
-function Ask($q) { $s = Read-Host "  $q [j/N]"; return ($s -match '^(j|ja|y|yes)$') }
+function Ask($q) { $s = Read-Host "  $q $(T '[y/N]' '[j/N]')"; return ($s -match '^(j|ja|y|yes)$') }
 
 $targets = @()
 if ($env:UPPA_PURGE -eq '1') {
@@ -29,14 +33,14 @@ $user = if ($OnWindows) { [Environment]::GetEnvironmentVariable('Path', 'User') 
 if (-not $user) { $user = '' }
 $inPath = ($user -split ';') -contains $Bin
 
-if (-not $targets -and -not $inPath) { Say 'Uppa är inte installerad här. Inget att ta bort.'; return }
-Write-Host "`n  Det här tas bort:"
+if (-not $targets -and -not $inPath) { Say (T 'Uppa is not installed here. Nothing to remove.' 'Uppa är inte installerad här. Inget att ta bort.'); return }
+Write-Host (T "`n  This is removed:" "`n  Det här tas bort:")
 $targets | ForEach-Object { Write-Host "    $_" }
 if ($inPath) { Write-Host "    $Bin i din PATH" }
-if ($env:UPPA_PURGE -ne '1') { Write-Host '  Behålls: Uppas cache och logg (~/.uppa).' }
+if ($env:UPPA_PURGE -ne '1') { Write-Host (T '  Kept: the Uppa cache and log (~/.uppa).' '  Behålls: Uppas cache och logg (~/.uppa).') }
 Write-Host ''
 if ($env:UPPA_YES -ne '1') {
-    if (-not (Ask 'Avinstallera Uppa?')) { Say 'Avbrutet. Ingenting har tagits bort.'; return }
+    if (-not (Ask (T 'Uninstall Uppa?' 'Avinstallera Uppa?'))) { Say (T 'Cancelled. Nothing has been removed.' 'Avbrutet. Ingenting har tagits bort.'); return }
 }
 
 foreach ($t in $targets) { Remove-Item $t -Recurse -Force }
@@ -46,4 +50,4 @@ if ($inPath) {
 if ((Test-Path $Dir) -and -not (Get-ChildItem $Dir -Force)) { Remove-Item $Dir -Force }
 
 $Clock.Stop()
-Write-Host "`n  ✔ Uppa är avinstallerad ($([int]$Clock.Elapsed.TotalSeconds) s).`n" -ForegroundColor Green
+Write-Host (T "`n  ✔ Uppa is uninstalled ($([int]$Clock.Elapsed.TotalSeconds) s).`n" "`n  ✔ Uppa är avinstallerad ($([int]$Clock.Elapsed.TotalSeconds) s).`n") -ForegroundColor Green

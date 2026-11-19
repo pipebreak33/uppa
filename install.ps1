@@ -20,6 +20,10 @@ $OnWindows = ($PSVersionTable.PSEdition -ne 'Core') -or $IsWindows
 $Dir = Join-Path $HOME '.uppa'
 $PyVersion = '3.12.8'
 
+# Language: TRUPPA_LANG, else ~/.truppa/config.json (shared by the whole troupe), else English
+$TL = $env:TRUPPA_LANG
+if (-not $TL) { try { $TL = (Get-Content -Raw -LiteralPath (Join-Path $HOME '.truppa/config.json') -ErrorAction Stop | ConvertFrom-Json).lang } catch { } }
+function T([string]$en, [string]$sv) { if ("$TL" -like 'sv*') { $sv } else { $en } }
 function Say($m)  { Write-Host "  ▲ $m" -ForegroundColor Green }
 function Warn($m) { Write-Host "  ! $m" -ForegroundColor Yellow }
 
@@ -60,19 +64,19 @@ function Find-Python {
 
 function Install-Python {
     if (-not $OnWindows) {
-        throw 'Python 3.8+ saknas. macOS: xcode-select --install (eller brew install python). Linux: sudo apt install python3.'
+        throw (T 'Python 3.8+ is missing. macOS: xcode-select --install (or brew install python). Linux: sudo apt install python3.' 'Python 3.8+ saknas. macOS: xcode-select --install (eller brew install python). Linux: sudo apt install python3.')
     }
     Update-SessionPath
     if (Get-Command winget -ErrorAction SilentlyContinue) {
-        Say 'Installerar Python 3 med winget'
+        Say (T 'Installing Python 3 with winget' 'Installerar Python 3 med winget')
         winget install --id Python.Python.3.12 -e --scope user --silent --accept-package-agreements --accept-source-agreements
         if ($LASTEXITCODE -eq 0) { Update-SessionPath; return }
-        Warn 'winget kunde inte installera Python, provar python.org'
+        Warn (T 'winget could not install Python, trying python.org' 'winget kunde inte installera Python, provar python.org')
     }
     $arch = switch ($env:PROCESSOR_ARCHITECTURE) { 'ARM64' { '-arm64' } 'x86' { '' } default { '-amd64' } }
     $url = "https://www.python.org/ftp/python/$PyVersion/python-$PyVersion$arch.exe"
     $exe = Join-Path $env:TEMP "python-$PyVersion-setup.exe"
-    Say "Hämtar Python $PyVersion från python.org"
+    Say (T "Fetching Python $PyVersion from python.org" "Hämtar Python $PyVersion från python.org")
     Invoke-WebRequest $url -OutFile $exe -UseBasicParsing
     $p = Start-Process $exe -ArgumentList '/quiet', 'InstallAllUsers=0', 'PrependPath=1', 'Include_launcher=1',
                                          'Include_test=0', 'Shortcuts=0' -Wait -PassThru
@@ -86,7 +90,7 @@ $py = Find-Python
 if (-not $py) {
     Install-Python
     $py = Find-Python
-    if (-not $py) { throw 'Python installerades men syns inte än. Öppna ett NYTT PowerShell-fönster och kör installationen igen.' }
+    if (-not $py) { throw (T 'Python was installed but is not visible yet. Open a NEW PowerShell window and run the installation again.' 'Python installerades men syns inte än. Öppna ett NYTT PowerShell-fönster och kör installationen igen.') }
 }
 
 # 2. uppa.py (lokal kopia bredvid skriptet om den finns, annars från GitHub)
@@ -94,14 +98,14 @@ New-Item -ItemType Directory -Force -Path $Dir | Out-Null
 $target = Join-Path $Dir 'uppa.py'
 $local = if ($PSScriptRoot) { Join-Path $PSScriptRoot 'uppa.py' } else { $null }
 if ($local -and (Test-Path $local) -and $env:UPPA_FROM_WEB -ne '1') {
-    Say "Installerar från $PSScriptRoot"
+    Say (T "Installing from $PSScriptRoot" "Installerar från $PSScriptRoot")
     Copy-Item $local $target -Force
 } else {
-    Say "Hämtar uppa från github.com/$Repo ($Branch)"
+    Say (T "Fetching uppa from github.com/$Repo ($Branch)" "Hämtar uppa från github.com/$Repo ($Branch)")
     $tmp = "$target.new"
     Invoke-WebRequest "https://raw.githubusercontent.com/$Repo/$Branch/uppa.py" -OutFile $tmp -UseBasicParsing
     & $py[0] @(@($py | Select-Object -Skip 1) + @('-c', 'import ast,sys; ast.parse(open(sys.argv[1],encoding="utf-8").read())', $tmp))
-    if ($LASTEXITCODE -ne 0) { throw 'Det nedladdade skriptet är trasigt.' }
+    if ($LASTEXITCODE -ne 0) { throw (T 'The downloaded script is broken.' 'Det nedladdade skriptet är trasigt.') }
     Move-Item $tmp $target -Force
 }
 
@@ -129,17 +133,17 @@ if ($OnWindows) {
     Set-Content -Path $shim -Value "#!/usr/bin/env sh`nexec `"$($py[0])`" `"$target`" `"`$@`"`n" -NoNewline
     chmod +x $shim
     if ((($env:PATH -split ':') -notcontains $bin)) {
-        Warn "Lägg till $bin i PATH (t.ex. i ~/.zshrc: export PATH=`"`$HOME/.local/bin:`$PATH`")"
+        Warn (T "Add $bin to PATH (e.g. in ~/.zshrc: export PATH=`"`$HOME/.local/bin:`$PATH`")" "Lägg till $bin i PATH (t.ex. i ~/.zshrc: export PATH=`"`$HOME/.local/bin:`$PATH`")")
     }
 }
 
 $ver = & $py[0] @(@($py | Select-Object -Skip 1) + @($target, '--version')) 2>$null
 $Clock.Stop(); $took = if ($Clock.Elapsed.TotalSeconds -ge 60) { '{0} min {1} s' -f [int][math]::Floor($Clock.Elapsed.TotalMinutes), $Clock.Elapsed.Seconds } else { '{0} s' -f [int]$Clock.Elapsed.TotalSeconds }
-Write-Host "`n  ✔ $ver installerad på $took. Öppna en ny terminal och kör: uppa   (grundpaketet: uppa install bas)" -ForegroundColor Green
-Write-Host "  Avinstallera: irm https://raw.githubusercontent.com/pipebreak33/uppa/main/uninstall.ps1 | iex`n" -ForegroundColor DarkGray
+Write-Host (T "`n  ✔ $ver installed in $took. Open a new terminal and run: uppa   (the base package: uppa install bas)" "`n  ✔ $ver installerad på $took. Öppna en ny terminal och kör: uppa   (grundpaketet: uppa install bas)") -ForegroundColor Green
+Write-Host "  $(T 'Uninstall:' 'Avinstallera:') irm https://raw.githubusercontent.com/pipebreak33/uppa/main/uninstall.ps1 | iex`n" -ForegroundColor DarkGray
 if ($OnWindows -and -not (Get-Command winget -ErrorAction SilentlyContinue)) {
-    Warn 'winget hittades inte. uppa behöver det för CLI-verktygen: uppdatera "App Installer" i Microsoft Store (https://aka.ms/getwinget).'
+    Warn (T 'winget was not found. uppa needs it for the CLI tools: update "App Installer" in the Microsoft Store (https://aka.ms/getwinget).' 'winget hittades inte. uppa behöver det för CLI-verktygen: uppdatera "App Installer" i Microsoft Store (https://aka.ms/getwinget).')
 }
 if (-not (Get-Command pwsh -ErrorAction SilentlyContinue)) {
-    Warn 'PowerShell 7 (pwsh) saknas. Installera det med: uppa install powershell'
+    Warn (T 'PowerShell 7 (pwsh) is missing. Install it with: uppa install powershell' 'PowerShell 7 (pwsh) saknas. Installera det med: uppa install powershell')
 }
